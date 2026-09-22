@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { Bot, User, ShieldCheck, AlertTriangle, ChevronDown, ChevronUp, Wrench, CheckCircle } from 'lucide-react';
+import { Bot, User, ShieldCheck, AlertTriangle, ChevronDown, ChevronUp, Wrench, CheckCircle, Phone } from 'lucide-react';
 import { ChatMessage } from '../../types';
+import { HumanSupportCard } from './HumanSupportCard';
 
 interface Props {
   message: ChatMessage;
@@ -63,6 +64,16 @@ export const ChatMessageBubble: React.FC<Props> = ({ message, onOpenTicket }) =>
               <div className="mt-2 text-[10px] text-slate-400 font-mono">
                 Reason: {message.escalation_dossier.reason}
               </div>
+            </div>
+          )}
+
+          {/* Inline Human Support Action Card for Escalated Messages */}
+          {!isUser && (message.requires_escalation || message.content.toLowerCase().includes('human support') || message.escalation_dossier) && (
+            <div className="mt-3">
+              <HumanSupportCard
+                caseId={message.case_id || null}
+                customerId="CUST1002"
+              />
             </div>
           )}
 

@@ -62,7 +62,12 @@ def run_intake_agent(user_goal: str, customer_id: str = "CUST1002") -> IntakeExt
         sentiment = "neutral"
 
     # Intent Classification
-    if any(phrase in goal_lower for phrase in ["human", "agent", "representative", "speak to a person", "operator", "supervisor"]):
+    human_phrases = [
+        "human", "agent", "representative", "speak to a person", "speak with someone",
+        "talk to a human", "customer support", "transfer me to a human", "talk to the bot",
+        "operator", "supervisor", "real person", "live person", "connect me"
+    ]
+    if any(phrase in goal_lower for phrase in human_phrases):
         intent = "human_escalation"
         sub_intent = "live_agent_handoff"
         requested_action = "escalate_to_human"

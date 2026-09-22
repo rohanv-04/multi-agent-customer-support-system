@@ -16,11 +16,13 @@ def format_final_customer_response(
     if escalation_dossier:
         ticket_id = escalation_dossier.get("ticket_id")
         return (
-            f"I have connected your request with our NovaCart Human Support Desk. "
-            f"Your support ticket has been registered under **Ticket #{ticket_id}** with High Priority. "
-            f"A human specialist is reviewing your order details and will take over shortly. "
-            f"Thank you for your patience!"
+            f"I can connect you with a human support agent.\n\n"
+            f"A priority ticket has been registered (**Ticket #{ticket_id}**). "
+            f"You can also select **Speak with a Human Agent** below to be assigned a direct representative."
         )
+
+    if intent == "human_escalation":
+        return "I can connect you with a human support agent."
 
     if intent == "refund_request":
         # Look for refund tool result

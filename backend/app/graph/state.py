@@ -43,3 +43,9 @@ class AgenticSupportState(TypedDict):
     # Final resolution
     final_response: str
     execution_trace: List[Dict[str, Any]]
+
+    # SupportOS AI V2 Differentiation Extensions
+    case_dna: Optional[Dict[str, Any]]
+    friction_profile: Optional[Dict[str, Any]]
+    integrity_check: Optional[Dict[str, Any]]
+    healing_attempts: Optional[int]

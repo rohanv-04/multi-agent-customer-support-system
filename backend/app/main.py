@@ -34,6 +34,8 @@ from .api.observability import router as observability_router
 from .api.evaluations import router as evaluations_router
 from .api.audit import router as audit_router
 from .api.auth import router as auth_router
+from .api.differentiation import router as differentiation_router
+from .api.human_support import router as human_support_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -158,6 +160,10 @@ app.include_router(observability_router)
 app.include_router(evaluations_router)
 app.include_router(audit_router)
 app.include_router(auth_router)
+app.include_router(differentiation_router, prefix="/api")
+app.include_router(differentiation_router)
+app.include_router(human_support_router, prefix="/api")
+app.include_router(human_support_router)
 
 # Health & Readiness Endpoints
 @app.get("/health", tags=["System Health"])

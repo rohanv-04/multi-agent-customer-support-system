@@ -452,3 +452,139 @@ export async function listOrganizations() {
   if (!res.ok) throw new Error(`Failed to fetch organizations: ${res.statusText}`);
   return res.json();
 }
+
+// ==============================================================================
+// SUPPORTOS AI V2 DIFFERENTIATION API CLIENT
+// ==============================================================================
+
+export async function getCustomerFriction(customerId: string) {
+  const res = await fetch(`${API_BASE_URL}/api/customers/${customerId}/friction`, {
+    headers: getAuthHeaders()
+  });
+  if (!res.ok) throw new Error(`Failed to fetch customer friction: ${res.statusText}`);
+  return res.json();
+}
+
+export async function getCaseDNA(caseId: string) {
+  const res = await fetch(`${API_BASE_URL}/api/cases/${caseId}/dna`, {
+    headers: getAuthHeaders()
+  });
+  if (!res.ok) throw new Error(`Failed to fetch case DNA: ${res.statusText}`);
+  return res.json();
+}
+
+export async function getNextBestAction(caseId: string) {
+  const res = await fetch(`${API_BASE_URL}/api/cases/${caseId}/next-action`, {
+    headers: getAuthHeaders()
+  });
+  if (!res.ok) throw new Error(`Failed to fetch next-best-action: ${res.statusText}`);
+  return res.json();
+}
+
+export async function getSimilarCases(caseId: string) {
+  const res = await fetch(`${API_BASE_URL}/api/cases/${caseId}/similar`, {
+    headers: getAuthHeaders()
+  });
+  if (!res.ok) throw new Error(`Failed to fetch similar cases: ${res.statusText}`);
+  return res.json();
+}
+
+export async function getCaseConflicts(caseId: string) {
+  const res = await fetch(`${API_BASE_URL}/api/cases/${caseId}/conflicts`, {
+    headers: getAuthHeaders()
+  });
+  if (!res.ok) throw new Error(`Failed to fetch agent conflicts: ${res.statusText}`);
+  return res.json();
+}
+
+export async function getRootCauses() {
+  const res = await fetch(`${API_BASE_URL}/api/root-causes`, {
+    headers: getAuthHeaders()
+  });
+  if (!res.ok) throw new Error(`Failed to fetch root causes: ${res.statusText}`);
+  return res.json();
+}
+
+export async function getRootCauseById(id: string) {
+  const res = await fetch(`${API_BASE_URL}/api/root-causes/${id}`, {
+    headers: getAuthHeaders()
+  });
+  if (!res.ok) throw new Error(`Failed to fetch root cause details: ${res.statusText}`);
+  return res.json();
+}
+
+export async function getKnowledgeGaps() {
+  const res = await fetch(`${API_BASE_URL}/api/knowledge-gaps`, {
+    headers: getAuthHeaders()
+  });
+  if (!res.ok) throw new Error(`Failed to fetch knowledge gaps: ${res.statusText}`);
+  return res.json();
+}
+
+export async function getSimulationScenarios() {
+  const res = await fetch(`${API_BASE_URL}/api/simulations/scenarios`, {
+    headers: getAuthHeaders()
+  });
+  if (!res.ok) throw new Error(`Failed to fetch simulation scenarios: ${res.statusText}`);
+  return res.json();
+}
+
+export async function runSimulation(data: { scenario_id?: string; customer_id?: string; issue_description: string; system_conditions?: any }) {
+  const res = await fetch(`${API_BASE_URL}/api/simulations`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify(data)
+  });
+  if (!res.ok) throw new Error(`Failed to execute simulation: ${res.statusText}`);
+  return res.json();
+}
+
+export async function getSimulationRun(runId: string) {
+  const res = await fetch(`${API_BASE_URL}/api/simulations/${runId}`, {
+    headers: getAuthHeaders()
+  });
+  if (!res.ok) throw new Error(`Failed to fetch simulation run: ${res.statusText}`);
+  return res.json();
+}
+
+export async function getOperationalInsights() {
+  const res = await fetch(`${API_BASE_URL}/api/operations/insights`, {
+    headers: getAuthHeaders()
+  });
+  if (!res.ok) throw new Error(`Failed to fetch operational insights: ${res.statusText}`);
+  return res.json();
+}
+
+// ==============================================================================
+// HUMAN SUPPORT ESCALATION API CLIENT
+// ==============================================================================
+
+export async function requestHumanSupport(caseId: string, customerId?: string, notes?: string) {
+  const res = await fetch(`${API_BASE_URL}/api/cases/${caseId}/human-support`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ customer_id: customerId, notes })
+  });
+  if (!res.ok) throw new Error(`Failed to request human support: ${res.statusText}`);
+  return res.json();
+}
+
+export async function recordCallInitiated(caseId: string, assignmentId: string) {
+  const res = await fetch(`${API_BASE_URL}/api/cases/${caseId}/human-support/${assignmentId}/call`, {
+    method: 'POST',
+    headers: getAuthHeaders()
+  });
+  if (!res.ok) throw new Error(`Failed to record call initiation: ${res.statusText}`);
+  return res.json();
+}
+
+export async function getHumanSupportAssignment(caseId: string) {
+  const res = await fetch(`${API_BASE_URL}/api/cases/${caseId}/human-support`, {
+    headers: getAuthHeaders()
+  });
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`Failed to fetch human support assignment: ${res.statusText}`);
+  return res.json();
+}
+
+

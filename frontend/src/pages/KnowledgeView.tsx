@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { BookOpen, RefreshCw, Search, FileText, CheckCircle2, Layers } from 'lucide-react';
-import { getKnowledgeDocs, reindexKnowledge, searchKnowledge } from '../services/api';
+import { BookOpen, RefreshCw, Search, FileText, CheckCircle2, Layers, AlertCircle, Sparkles } from 'lucide-react';
+import { getKnowledgeDocs, reindexKnowledge, searchKnowledge, getKnowledgeGaps } from '../services/api';
+import { KnowledgeGapItem } from '../types';
 
 export const KnowledgeView: React.FC = () => {
   const [docs, setDocs] = useState<any[]>([]);
+  const [gaps, setGaps] = useState<KnowledgeGapItem[]>([]);
   const [totalChunks, setTotalChunks] = useState(0);
   const [query, setQuery] = useState('');
   const [searchResults, setSearchResults] = useState<any | null>(null);
@@ -12,9 +14,13 @@ export const KnowledgeView: React.FC = () => {
 
   const fetchDocs = async () => {
     try {
-      const data = await getKnowledgeDocs();
-      setDocs(data.documents || []);
-      setTotalChunks(data.total_chunks || 0);
+      const [docsData, gapsData] = await Promise.all([
+        getKnowledgeDocs().catch(() => ({ documents: [], total_chunks: 0 })),
+        getKnowledgeGaps().catch(() => ({ gaps: [] }))
+      ]);
+      setDocs(docsData.documents || []);
+      setTotalChunks(docsData.total_chunks || 0);
+      setGaps(gapsData.gaps || []);
     } catch (e) {
       console.error('Error fetching knowledge docs:', e);
     }
@@ -142,6 +148,61 @@ export const KnowledgeView: React.FC = () => {
             </div>
           </div>
         ))}
+      </div>
+
+      {/* Feature 8: Knowledge Gap Detector */}
+      <div className="glass-standard rounded-2xl p-6 space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 text-amber-400" />
+            <h3 className="text-sm font-bold text-white uppercase tracking-wider">
+              Autonomous Knowledge Gap & Blindspot Detector
+            </h3>
+          </div>
+          <span className="text-xs font-mono text-amber-300 bg-amber-500/10 px-2.5 py-0.5 rounded-full border border-amber-500/20">
+            {gaps.length} Gaps Flagged
+          </span>
+        </div>
+        <p className="text-xs text-slate-400">
+          Unanswered queries and low-confidence policy searches automatically flagged to prevent AI hallucinations and highlight needed policy documentation.
+        </p>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {gaps.map((gap) => (
+            <div key={gap.id} className="p-4 rounded-xl bg-slate-900/60 border border-slate-800 space-y-2 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-slate-200">{gap.topic}</span>
+                <span className={`px-2 py-0.5 rounded text-[10px] font-bold font-mono ${
+                  gap.severity === 'high' ? 'bg-rose-500/20 text-rose-300' :
+                  gap.severity === 'medium' ? 'bg-amber-500/20 text-amber-300' :
+                  'bg-slate-700 text-slate-300'
+                }`}>
+                  {gap.occurrences} Occurrences
+                </span>
+              </div>
+
+              {gap.suggested_documentation_topic && (
+                <div className="p-2 rounded-lg bg-cyan-950/20 border border-cyan-500/20 text-[11px] text-cyan-300 flex items-start gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                  <span><strong>Suggested Article:</strong> {gap.suggested_documentation_topic}</span>
+                </div>
+              )}
+
+              {gap.affected_cases && gap.affected_cases.length > 0 && (
+                <div className="flex items-center gap-1.5 text-[10px] text-slate-400 font-mono">
+                  <span>Linked Cases:</span>
+                  <span>{gap.affected_cases.join(', ')}</span>
+                </div>
+              )}
+            </div>
+          ))}
+
+          {gaps.length === 0 && (
+            <div className="col-span-2 text-center py-8 text-xs text-slate-500">
+              No knowledge gaps detected. Policy coverage is comprehensive across recent inquiries.
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

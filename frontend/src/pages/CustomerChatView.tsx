@@ -6,6 +6,7 @@ import { AIExecutionPanel } from '../components/chat/AIExecutionPanel';
 import { SpatialAgentGraph } from '../components/chat/SpatialAgentGraph';
 import { CustomerContextCard } from '../components/chat/CustomerContextCard';
 import { DemoScenarioLauncher } from '../components/chat/DemoScenarioLauncher';
+import { HumanSupportCard } from '../components/chat/HumanSupportCard';
 import { sendMessage, streamChatMessage } from '../services/api';
 
 interface Props {
@@ -260,6 +261,15 @@ export const CustomerChatView: React.FC<Props> = ({
 
       {/* RIGHT COLUMN: Customer 360 & Case Context Card (3 cols) */}
       <div className="xl:col-span-3 flex flex-col gap-4 overflow-y-auto h-[calc(100vh-8.5rem)]">
+        {/* Human Agent Escalation & Call Now Card */}
+        <HumanSupportCard
+          caseId={activeCaseId}
+          customerId={currentCustomer?.customer_id || 'CUST1002'}
+          onAssigned={(asgn) => {
+            if (onTicketCreated) onTicketCreated();
+          }}
+        />
+
         <CustomerContextCard
           customer={currentCustomer}
           activeCaseId={activeCaseId}

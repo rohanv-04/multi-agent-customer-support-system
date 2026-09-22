@@ -13,8 +13,8 @@ import {
   MessageSquarePlus,
   DollarSign
 } from 'lucide-react';
-import { getCustomers, getCustomer360 } from '../services/api';
-import { Customer, Customer360 } from '../types';
+import { getCustomers, getCustomer360, getCustomerFriction } from '../services/api';
+import { Customer, Customer360, CustomerFrictionProfile } from '../types';
 import { useAuth } from '../context/AuthContext';
 
 interface Props {
@@ -27,6 +27,7 @@ export const CustomersView: React.FC<Props> = ({ onSelectCustomerToChat, onCreat
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('CUST1002');
   const [customer360, setCustomer360] = useState<Customer360 | null>(null);
+  const [friction, setFriction] = useState<CustomerFrictionProfile | null>(null);
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [tierFilter, setTierFilter] = useState<string>('ALL');
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -50,8 +51,12 @@ export const CustomersView: React.FC<Props> = ({ onSelectCustomerToChat, onCreat
     setIsDossierLoading(true);
     setSelectedCustomerId(id);
     try {
-      const data = await getCustomer360(id);
-      setCustomer360(data);
+      const [c360Data, frictionData] = await Promise.all([
+        getCustomer360(id).catch(() => null),
+        getCustomerFriction(id).catch(() => null)
+      ]);
+      setCustomer360(c360Data);
+      setFriction(frictionData);
     } catch (err) {
       console.error('Failed to load customer 360:', err);
     } finally {
@@ -256,6 +261,72 @@ export const CustomersView: React.FC<Props> = ({ onSelectCustomerToChat, onCreat
                   </div>
                 </div>
               </div>
+
+              {/* Feature 1: Customer Friction Score & Explainable Factor Breakdown */}
+              {friction && (
+                <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-6 backdrop-blur-md space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                      <ShieldCheck className="w-4 h-4 text-cyan-400" />
+                      Customer Friction Score (CFS) & Operational Health
+                    </h3>
+                    <div className="flex items-center gap-2">
+                      <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${
+                        friction.level === 'CRITICAL' ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30' :
+                        friction.level === 'HIGH' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' :
+                        friction.level === 'MEDIUM' ? 'bg-yellow-500/20 text-yellow-300 border border-yellow-500/30' :
+                        'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                      }`}>
+                        {friction.level} FRICTION
+                      </span>
+                      <span className="text-lg font-black font-mono text-cyan-400">
+                        {friction.score}/100
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Top Contributing Friction Factors */}
+                  {friction.contributing_factors && friction.contributing_factors.length > 0 && (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between text-[11px] font-semibold text-slate-400 uppercase tracking-wider font-mono">
+                        <span>Explainable Friction Breakdown ({friction.contributing_factors.length} Factors)</span>
+                        <span>Trend: <strong className="text-cyan-400">{friction.recent_trend}</strong></span>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {friction.contributing_factors.map((factor, idx) => (
+                          <div key={idx} className="p-3 rounded-xl bg-slate-800/40 border border-slate-700/50 space-y-1">
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-bold text-slate-200">
+                                {factor.label || factor.factor_type.replace(/_/g, ' ')}
+                              </span>
+                              <span className="text-[10px] font-mono font-bold text-amber-400">
+                                +{factor.impact_score} pts
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-slate-400 leading-snug">
+                              {factor.description}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Affected Cases */}
+                  {friction.affected_cases && friction.affected_cases.length > 0 && (
+                    <div className="pt-2 border-t border-slate-800/80 flex items-center gap-2 text-xs">
+                      <span className="text-slate-400 font-mono">Linked Cases:</span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {friction.affected_cases.map((cId) => (
+                          <span key={cId} className="px-2 py-0.5 rounded bg-slate-800 text-cyan-300 font-mono text-[10px] border border-slate-700">
+                            {cId}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Order History with Carrier Tracking */}
               <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-6 backdrop-blur-md space-y-4">

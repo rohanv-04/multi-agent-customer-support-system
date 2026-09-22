@@ -253,3 +253,194 @@ export interface AgentInfo {
   purpose: string;
   tools_accessible: string[];
 }
+
+// ==============================================================================
+// SUPPORTOS AI V2 DIFFERENTIATION TYPES
+// ==============================================================================
+
+export type FrictionLevel = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+
+export interface FrictionFactor {
+  factor_type: string;
+  label: string;
+  impact_score: number;
+  description: string;
+  raw_signal?: any;
+}
+
+export interface CustomerFrictionProfile {
+  customer_id: string;
+  score: number;
+  level: FrictionLevel;
+  contributing_factors: FrictionFactor[];
+  recent_trend: string;
+  affected_cases: string[];
+  calculated_at?: string;
+}
+
+export interface CaseDNA {
+  case_id: string;
+  intent: string;
+  sub_intent?: string;
+  severity: string;
+  urgency: string;
+  customer_value: string;
+  operational_risk: string;
+  policy_complexity: string;
+  sla_risk: string;
+  fraud_risk_score: number;
+  channel: string;
+  affected_business_area: string;
+  required_capabilities: string[];
+  fingerprint_hash?: string;
+  created_at?: string;
+}
+
+export interface RootCauseEvidenceItem {
+  evidence_type: string;
+  description: string;
+  raw_data?: any;
+  confidence: number;
+}
+
+export interface RootCauseItem {
+  id: string;
+  category: string;
+  title: string;
+  description: string;
+  confidence: number;
+  status: 'DETECTED_PATTERN' | 'CONFIRMED_ROOT_CAUSE' | 'MITIGATED' | 'RESOLVED';
+  affected_cases_count: number;
+  affected_customers_count: number;
+  evidence: RootCauseEvidenceItem[];
+  first_detected: string;
+  last_detected: string;
+}
+
+export interface NextBestActionAlternative {
+  action_type: string;
+  label: string;
+  confidence: number;
+  reason: string;
+  risk_level: string;
+}
+
+export interface NextBestActionResponse {
+  case_id: string;
+  recommended_action: string;
+  action_type: string;
+  parameters: Record<string, any>;
+  justification: string;
+  alternatives: NextBestActionAlternative[];
+  evidence: string[];
+  policy_basis: string;
+  risk_level: string;
+  requires_approval: boolean;
+  required_role: string;
+}
+
+export interface KnowledgeGapItem {
+  id: string;
+  topic: string;
+  occurrences: number;
+  affected_cases: string[];
+  evidence: string[];
+  severity: string;
+  status: string;
+  suggested_documentation_topic?: string;
+  detected_at: string;
+}
+
+export interface SimulationScenario {
+  id: string;
+  name: string;
+  description: string;
+  customer_profile: any;
+  issue_description: string;
+  system_conditions: Record<string, any>;
+}
+
+export interface SimulationRunResult {
+  run_id: string;
+  scenario_id?: string;
+  status: string;
+  started_at: string;
+  completed_at?: string;
+  total_duration_ms: number;
+  safety_verified: boolean;
+  case_dna?: CaseDNA;
+  friction_profile?: CustomerFrictionProfile;
+  execution_trace: any[];
+  agent_outputs: any[];
+  simulated_tool_calls: any[];
+  final_outcome: Record<string, any>;
+}
+
+export interface AgentPosition {
+  agent_name: string;
+  conclusion: string;
+  evidence: string[];
+  confidence: number;
+  concerns: string[];
+  recommended_action: string;
+}
+
+export interface AgentDebateRecord {
+  case_id: string;
+  positions: Record<string, AgentPosition>;
+  conflicting_points: string[];
+  resolution_rationale: string;
+  final_action_chosen: string;
+  resolved_by: string;
+  timestamp: string;
+}
+
+export interface SimilarCaseItem {
+  case_id: string;
+  similarity_score: number;
+  intent: string;
+  subject: string;
+  resolution_summary: string;
+  outcome: string;
+  was_escalated: boolean;
+  channel: string;
+}
+
+export interface OperationalInsightItem {
+  id: string;
+  category: string;
+  title: string;
+  observation: string;
+  severity: 'info' | 'warning' | 'critical';
+  metrics: Record<string, any>;
+  generated_at: string;
+}
+
+export interface RepresentativeInfo {
+  id: string;
+  name: string;
+  phone: string;
+  available?: boolean;
+}
+
+export interface HumanSupportAssignment {
+  assignment_id: string;
+  case_id: string;
+  customer_id: string;
+  representative: RepresentativeInfo;
+  assignment_method: string;
+  status: 'ASSIGNED' | 'CALL_AVAILABLE' | 'CALL_INITIATED' | 'COMPLETED';
+  assigned_at: string;
+  tel_link: string;
+}
+
+export interface CallInitiatedResponse {
+  assignment_id: string;
+  case_id: string;
+  status: string;
+  recorded_at: string;
+  representative_name: string;
+  phone: string;
+  tel_link: string;
+}
+

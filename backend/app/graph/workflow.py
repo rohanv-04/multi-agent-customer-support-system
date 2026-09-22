@@ -28,6 +28,10 @@ from ..database.models import (
 )
 from ..services.case_service import CaseService
 from ..services.customer_intelligence_service import CustomerIntelligenceService
+from ..services.customer_friction_service import CustomerFrictionService
+from ..services.case_dna_service import CaseDNAService
+from ..agents.swarm_investigation import run_swarm_investigation
+from ..agents.conversation_integrity_guard import ConversationIntegrityGuard
 from ..schemas.case import (
     CaseCreate,
     CaseStatus,
@@ -212,8 +216,12 @@ def investigation_node(state: AgenticSupportState) -> Dict[str, Any]:
             case = db.query(SupportCase).filter(SupportCase.id == case_id).first()
 
         if case and customer_360:
-            run = CaseService.start_agent_run(db, case_id, "Investigation Agent", task_id=state["task_id"])
-            inv_res = run_investigation_agent(
+            # SupportOS AI V2: Calculate Case DNA and Customer Friction
+            case_dna = CaseDNAService.generate_case_dna(db, case, intake, customer_360)
+            friction = CustomerFrictionService.calculate_friction(db, customer_id)
+
+            run = CaseService.start_agent_run(db, case_id, "Swarm Investigation Engine", task_id=state["task_id"])
+            inv_res = run_swarm_investigation(
                 db=db,
                 case=case,
                 customer_360=customer_360,
@@ -224,20 +232,18 @@ def investigation_node(state: AgenticSupportState) -> Dict[str, Any]:
             CaseService.complete_agent_run(
                 db, run.id,
                 status="completed",
-                output_summary=f"Assembled {len(inv_res.findings)} findings & {len(inv_res.evidence)} verified facts across {len(inv_res.data_sources)} data sources",
+                output_summary=f"Swarm diagnostic assembled {len(inv_res.findings)} findings & {len(inv_res.evidence)} verified facts across {len(inv_res.data_sources)} data sources",
                 confidence=0.98
             )
 
             add_trace(
                 state,
                 "Investigation Agent",
-                f"Completed multi-source investigation ({len(inv_res.findings)} findings, {len(inv_res.evidence)} facts)",
+                f"Completed parallel swarm diagnostics ({len(inv_res.findings)} findings, {len(inv_res.evidence)} facts)",
                 {
                     "findings_count": len(inv_res.findings),
                     "evidence_count": len(inv_res.evidence),
-                    "data_sources": inv_res.data_sources,
-                    "recommended_next_step": inv_res.recommended_next_step,
-                    "status": inv_res.investigation_status
+                    "data_sources": inv_res.data_sources
                 }
             )
     except Exception as e:
@@ -775,6 +781,21 @@ def complete_node(state: AgenticSupportState) -> Dict[str, Any]:
         escalation_dossier=state.get("escalation_dossier")
     )
     case_id = state.get("case_id")
+
+    # SupportOS AI V2: Conversation Integrity Guard validation
+    db_guard = SessionLocal()
+    try:
+        case_obj = db_guard.query(SupportCase).filter(SupportCase.id == case_id).first() if case_id else None
+        integrity_check = ConversationIntegrityGuard.audit_and_verify(
+            db=db_guard,
+            draft_response=final_text,
+            case=case_obj,
+            action_executed={"status": "completed"} if not state.get("requires_escalation") else None
+        )
+        if not integrity_check.is_approved and integrity_check.revised_content:
+            final_text = integrity_check.revised_content
+    finally:
+        db_guard.close()
 
     # Update database Task & Memory
     db = SessionLocal()

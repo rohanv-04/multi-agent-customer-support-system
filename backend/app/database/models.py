@@ -350,3 +350,217 @@ class CustomerMemory(Base):
     value = Column(Text, nullable=False)
     created_at = Column(DateTime, default=get_utc_now)
     updated_at = Column(DateTime, default=get_utc_now, onupdate=get_utc_now)
+
+
+# ==============================================================================
+# SUPPORTOS AI V2 DIFFERENTIATION MODELS
+# ==============================================================================
+
+class CustomerFrictionRecord(Base):
+    """Historical snapshot and profile of customer friction."""
+    __tablename__ = "customer_friction_records"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    customer_id = Column(String(50), ForeignKey("customers.customer_id"), nullable=False)
+    organization_id = Column(String(50), ForeignKey("organizations.id"), nullable=True, default="ORG-NOVACART")
+    score = Column(Float, nullable=False)  # 0.0 to 100.0
+    level = Column(String(20), nullable=False)  # LOW, MEDIUM, HIGH, CRITICAL
+    contributing_factors_json = Column(Text, nullable=False)
+    recent_trend = Column(String(50), default="stable")  # improving, stable, escalating
+    affected_cases_json = Column(Text, nullable=True)
+    calculated_at = Column(DateTime, default=get_utc_now)
+
+
+class CaseDNARecord(Base):
+    """Case DNA: Multidimensional fingerprint of a SupportCase."""
+    __tablename__ = "case_dna_records"
+
+    case_id = Column(String(50), ForeignKey("cases.id"), primary_key=True)
+    organization_id = Column(String(50), ForeignKey("organizations.id"), nullable=True, default="ORG-NOVACART")
+    intent = Column(String(100), nullable=False)
+    sub_intent = Column(String(100), nullable=True)
+    severity = Column(String(20), default="medium")  # low, medium, high, critical
+    urgency = Column(String(20), default="medium")
+    customer_value = Column(String(50), default="Standard")
+    operational_risk = Column(String(20), default="low")
+    policy_complexity = Column(String(20), default="standard")  # simple, standard, complex, ambiguous
+    sla_risk = Column(String(20), default="low")
+    fraud_risk_score = Column(Float, default=0.0)
+    channel = Column(String(50), default="web_chat")
+    affected_business_area = Column(String(100), default="logistics")
+    required_capabilities_json = Column(Text, nullable=False)
+    fingerprint_hash = Column(String(64), nullable=True)
+    created_at = Column(DateTime, default=get_utc_now)
+
+
+class RootCause(Base):
+    """Root Cause Intelligence: Cluster of systemic operational issues."""
+    __tablename__ = "root_causes"
+
+    id = Column(String(50), primary_key=True)  # RC-XXXX
+    organization_id = Column(String(50), ForeignKey("organizations.id"), nullable=True, default="ORG-NOVACART")
+    category = Column(String(100), nullable=False)  # warehouse, carrier, product, payment, policy, technical
+    title = Column(String(255), nullable=False)
+    description = Column(Text, nullable=False)
+    confidence = Column(Float, default=0.85)
+    status = Column(String(50), default="DETECTED_PATTERN")  # DETECTED_PATTERN, CONFIRMED_ROOT_CAUSE, MITIGATED, RESOLVED
+    first_detected = Column(DateTime, default=get_utc_now)
+    last_detected = Column(DateTime, default=get_utc_now)
+    created_at = Column(DateTime, default=get_utc_now)
+    updated_at = Column(DateTime, default=get_utc_now, onupdate=get_utc_now)
+
+    evidence_items = relationship("RootCauseEvidence", back_populates="root_cause", cascade="all, delete-orphan")
+    case_links = relationship("RootCauseCaseLink", back_populates="root_cause", cascade="all, delete-orphan")
+
+
+class RootCauseEvidence(Base):
+    __tablename__ = "root_cause_evidence"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    root_cause_id = Column(String(50), ForeignKey("root_causes.id"), nullable=False)
+    evidence_type = Column(String(50), nullable=False)  # telemetry, delay_cluster, payment_failure, policy_dispute
+    description = Column(Text, nullable=False)
+    raw_data_json = Column(Text, nullable=True)
+    confidence = Column(Float, default=1.0)
+    created_at = Column(DateTime, default=get_utc_now)
+
+    root_cause = relationship("RootCause", back_populates="evidence_items")
+
+
+class RootCauseCaseLink(Base):
+    __tablename__ = "root_cause_case_links"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    root_cause_id = Column(String(50), ForeignKey("root_causes.id"), nullable=False)
+    case_id = Column(String(50), ForeignKey("cases.id"), nullable=False)
+    customer_id = Column(String(50), nullable=False)
+    linked_at = Column(DateTime, default=get_utc_now)
+
+    root_cause = relationship("RootCause", back_populates="case_links")
+
+
+class KnowledgeGap(Base):
+    """Knowledge Gap: Missing, ambiguous, or contradictory policy clusters."""
+    __tablename__ = "knowledge_gaps"
+
+    id = Column(String(50), primary_key=True)  # KG-XXXX
+    organization_id = Column(String(50), ForeignKey("organizations.id"), nullable=True, default="ORG-NOVACART")
+    topic = Column(String(200), nullable=False)
+    occurrences = Column(Integer, default=1)
+    affected_cases_json = Column(Text, nullable=False)
+    evidence_json = Column(Text, nullable=True)
+    severity = Column(String(20), default="medium")  # low, medium, high, critical
+    status = Column(String(50), default="OPEN")  # OPEN, IN_REVIEW, RESOLVED
+    suggested_documentation_topic = Column(String(255), nullable=True)
+    detected_at = Column(DateTime, default=get_utc_now)
+    resolved_at = Column(DateTime, nullable=True)
+
+
+class SimulationScenario(Base):
+    """AI Simulation Lab Scenario definition."""
+    __tablename__ = "simulation_scenarios"
+
+    id = Column(String(50), primary_key=True)  # SIM-SCEN-XXXX
+    name = Column(String(200), nullable=False)
+    description = Column(Text, nullable=False)
+    customer_profile_json = Column(Text, nullable=False)
+    issue_description = Column(Text, nullable=False)
+    system_conditions_json = Column(Text, nullable=False)  # e.g. {"carrier_api_down": true, "refund_limit": 300}
+    created_at = Column(DateTime, default=get_utc_now)
+
+
+class SimulationRun(Base):
+    """Execution record for a sandboxed AI Simulation run."""
+    __tablename__ = "simulation_runs"
+
+    id = Column(String(50), primary_key=True)  # SIM-RUN-XXXX
+    scenario_id = Column(String(50), ForeignKey("simulation_scenarios.id"), nullable=True)
+    status = Column(String(50), default="running")  # running, completed, failed
+    started_at = Column(DateTime, default=get_utc_now)
+    completed_at = Column(DateTime, nullable=True)
+    total_duration_ms = Column(Integer, default=0)
+    result_summary_json = Column(Text, nullable=True)
+    execution_trace_json = Column(Text, nullable=True)
+    agent_outputs_json = Column(Text, nullable=True)
+    simulated_tool_calls_json = Column(Text, nullable=True)
+    case_dna_json = Column(Text, nullable=True)
+    friction_json = Column(Text, nullable=True)
+    safety_verified = Column(Boolean, default=True)  # Guarantees zero real DB writes occurred
+
+
+class SimulationEvent(Base):
+    __tablename__ = "simulation_events"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    run_id = Column(String(50), ForeignKey("simulation_runs.id"), nullable=False)
+    timestamp = Column(DateTime, default=get_utc_now)
+    phase = Column(String(50), nullable=False)
+    agent = Column(String(100), nullable=False)
+    action = Column(String(100), nullable=False)
+    details_json = Column(Text, nullable=True)
+
+
+class AgentConflict(Base):
+    """Structured record of specialist agent disagreements and arbitrated resolutions."""
+    __tablename__ = "agent_conflicts"
+
+    id = Column(String(50), primary_key=True)  # CONF-XXXX
+    case_id = Column(String(50), ForeignKey("cases.id"), nullable=False)
+    organization_id = Column(String(50), ForeignKey("organizations.id"), nullable=True, default="ORG-NOVACART")
+    agent_positions_json = Column(Text, nullable=False)  # Positions from Investigation, Policy, Risk, etc.
+    conflicting_points_json = Column(Text, nullable=False)
+    resolution_rationale = Column(Text, nullable=False)
+    final_action_chosen = Column(String(100), nullable=False)
+    resolved_by = Column(String(100), default="Decision Agent")
+    created_at = Column(DateTime, default=get_utc_now)
+
+
+class WorkflowHealingRecord(Base):
+    """Telemetry for self-healing workflow recovery and retry attempts."""
+    __tablename__ = "workflow_healing_records"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    case_id = Column(String(50), ForeignKey("cases.id"), nullable=True)
+    task_id = Column(String(100), nullable=True)
+    failure_type = Column(String(100), nullable=False)  # timeout, tool_failure, api_outage, policy_ambiguity
+    error_message = Column(Text, nullable=False)
+    recovery_attempted = Column(String(100), nullable=False)  # replan, tool_retry, state_reset, escalate
+    retry_count = Column(Integer, default=1)
+    recovery_successful = Column(Boolean, default=False)
+    final_disposition = Column(String(100), default="resolved")  # recovered, escalated, terminated
+    details_json = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=get_utc_now)
+
+
+class OperationalInsight(Base):
+    """OperationalInsight: Grounded systemic observations on throughput, bottlenecks, and automation."""
+    __tablename__ = "operational_insights"
+
+    id = Column(String(50), primary_key=True)
+    organization_id = Column(String(50), ForeignKey("organizations.id"), nullable=False, default="ORG-NOVACART")
+    category = Column(String(50), nullable=False)
+    title = Column(String(255), nullable=False)
+    observation = Column(Text, nullable=False)
+    severity = Column(String(20), default="info")
+    metrics_json = Column(Text, nullable=True)
+    generated_at = Column(DateTime, default=get_utc_now)
+
+
+class HumanSupportAssignment(Base):
+    """HumanSupportAssignment: Record of human support representative assigned to a customer/case."""
+    __tablename__ = "human_support_assignments"
+
+    id = Column(String(50), primary_key=True)  # HSA-XXXX or UUID
+    case_id = Column(String(50), ForeignKey("cases.id"), nullable=False)
+    customer_id = Column(String(50), ForeignKey("customers.customer_id"), nullable=False)
+    representative_id = Column(String(50), nullable=False)
+    representative_name = Column(String(100), nullable=False)
+    phone = Column(String(50), nullable=False)
+    assignment_method = Column(String(50), default="RANDOM")  # RANDOM, AVAILABILITY, ROUND_ROBIN
+    assigned_at = Column(DateTime, default=get_utc_now)
+    status = Column(String(50), default="ASSIGNED")  # ASSIGNED, CALL_AVAILABLE, CALL_INITIATED, COMPLETED
+    organization_id = Column(String(50), ForeignKey("organizations.id"), nullable=False, default="ORG-NOVACART")
+    notes = Column(Text, nullable=True)
+
+    case = relationship("SupportCase")
+    customer = relationship("Customer")

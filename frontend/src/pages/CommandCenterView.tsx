@@ -16,7 +16,8 @@ import {
   MessageSquareText,
   ChevronRight
 } from 'lucide-react';
-import { getCases, getAgentPerformance, getFailureAnalysis, getAnalytics, getEscalations } from '../services/api';
+import { getCases, getAgentPerformance, getFailureAnalysis, getAnalytics, getEscalations, getOperationalInsights } from '../services/api';
+import { OperationalInsightItem } from '../types';
 import { useAuth } from '../context/AuthContext';
 
 interface Props {
@@ -36,17 +37,19 @@ export const CommandCenterView: React.FC<Props> = ({
   const [failureReport, setFailureReport] = useState<any | null>(null);
   const [analytics, setAnalytics] = useState<any | null>(null);
   const [escalations, setEscalations] = useState<any[]>([]);
+  const [insights, setInsights] = useState<OperationalInsightItem[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
   const fetchData = async () => {
     setIsLoading(true);
     try {
-      const [casesRes, agentRes, failRes, analyticsRes, escRes] = await Promise.all([
+      const [casesRes, agentRes, failRes, analyticsRes, escRes, insightRes] = await Promise.all([
         getCases().catch(() => []),
         getAgentPerformance().catch(() => []),
         getFailureAnalysis().catch(() => null),
         getAnalytics().catch(() => null),
-        getEscalations('open').catch(() => ({ tickets: [] }))
+        getEscalations('open').catch(() => ({ tickets: [] })),
+        getOperationalInsights().catch(() => ({ insights: [] }))
       ]);
 
       setCases(casesRes || []);
@@ -54,6 +57,7 @@ export const CommandCenterView: React.FC<Props> = ({
       setFailureReport(failRes);
       setAnalytics(analyticsRes);
       setEscalations(escRes?.tickets || []);
+      setInsights(insightRes?.insights || []);
     } catch (err) {
       console.error('Failed to load command center telemetry:', err);
     } finally {
@@ -433,6 +437,62 @@ export const CommandCenterView: React.FC<Props> = ({
               ))}
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* Feature 12: Grounded Operations Intelligence & Bottleneck Detection */}
+      <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-6 backdrop-blur-md space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-bold text-white flex items-center gap-2">
+              <Zap className="w-5 h-5 text-cyan-400" />
+              Operations Intelligence & Autonomous Bottleneck Insights
+            </h2>
+            <p className="text-xs text-slate-400">
+              Grounded AI analysis of operational velocity, automation opportunities, and systemic friction.
+            </p>
+          </div>
+          <span className="text-xs font-mono text-cyan-400 bg-cyan-500/10 px-3 py-1 rounded-full border border-cyan-500/20">
+            {insights.length} Systemic Insights
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {insights.map((ins) => (
+            <div key={ins.id} className="p-4 rounded-xl bg-slate-800/40 border border-slate-700/60 space-y-2.5 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase font-mono bg-cyan-500/15 text-cyan-300 border border-cyan-500/30">
+                  {ins.category}
+                </span>
+                <span className={`text-[10px] font-bold uppercase font-mono ${
+                  ins.severity === 'critical' ? 'text-rose-400' :
+                  ins.severity === 'warning' ? 'text-amber-400' :
+                  'text-slate-400'
+                }`}>
+                  {ins.severity}
+                </span>
+              </div>
+
+              <h4 className="font-bold text-white text-sm">{ins.title}</h4>
+              <p className="text-slate-300 text-[11px] leading-relaxed">{ins.observation}</p>
+
+              {ins.metrics && Object.keys(ins.metrics).length > 0 && (
+                <div className="pt-2 border-t border-slate-700/40 grid grid-cols-2 gap-2 text-[10px] font-mono text-slate-400">
+                  {Object.entries(ins.metrics).slice(0, 2).map(([k, v]) => (
+                    <div key={k} className="truncate">
+                      <span>{k.replace(/_/g, ' ')}:</span> <strong className="text-cyan-300">{String(v)}</strong>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+
+          {insights.length === 0 && (
+            <div className="col-span-3 text-center py-10 text-xs text-slate-500">
+              Generating operational intelligence observations from live fleet telemetry...
+            </div>
+          )}
         </div>
       </div>
     </div>

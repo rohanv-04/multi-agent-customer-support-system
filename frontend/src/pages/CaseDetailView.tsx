@@ -29,8 +29,18 @@ import {
   addCaseMessage, 
   updateCaseStatus, 
   reviewActionRequest,
-  sendMessage 
+  sendMessage,
+  getCaseDNA,
+  getNextBestAction,
+  getCaseConflicts,
+  getSimilarCases
 } from '../services/api';
+import { 
+  CaseDNA, 
+  NextBestActionResponse, 
+  AgentDebateRecord, 
+  SimilarCaseItem 
+} from '../types';
 import { useAuth } from '../context/AuthContext';
 
 interface Props {
@@ -44,8 +54,12 @@ export const CaseDetailView: React.FC<Props> = ({ caseId, onBack }) => {
   const [timeline, setTimeline] = useState<any[]>([]);
   const [trace, setTrace] = useState<any | null>(null);
   const [customer360, setCustomer360] = useState<any | null>(null);
+  const [caseDNA, setCaseDNA] = useState<CaseDNA | null>(null);
+  const [nextAction, setNextAction] = useState<NextBestActionResponse | null>(null);
+  const [debates, setDebates] = useState<AgentDebateRecord[]>([]);
+  const [similarCases, setSimilarCases] = useState<SimilarCaseItem[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [activeRightTab, setActiveRightTab] = useState<'trace' | 'evidence' | 'decision' | 'actions' | 'audit'>('trace');
+  const [activeRightTab, setActiveRightTab] = useState<'trace' | 'dna' | 'nba' | 'debates' | 'similar' | 'evidence' | 'decision' | 'actions'>('trace');
   
   // Reply input state
   const [replyMessage, setReplyMessage] = useState<string>('');
@@ -55,15 +69,23 @@ export const CaseDetailView: React.FC<Props> = ({ caseId, onBack }) => {
   const fetchFullCaseContext = async () => {
     setIsLoading(true);
     try {
-      const [detailRes, timeRes, traceRes] = await Promise.all([
+      const [detailRes, timeRes, traceRes, dnaRes, nbaRes, debateRes, simRes] = await Promise.all([
         getCaseDetail(caseId).catch(() => null),
         getCaseTimeline(caseId).catch(() => []),
-        getCaseTrace(caseId).catch(() => null)
+        getCaseTrace(caseId).catch(() => null),
+        getCaseDNA(caseId).catch(() => null),
+        getNextBestAction(caseId).catch(() => null),
+        getCaseConflicts(caseId).catch(() => ({ conflicts: [] })),
+        getSimilarCases(caseId).catch(() => ({ similar_cases: [] }))
       ]);
 
       setCaseDetail(detailRes);
       setTimeline(timeRes || []);
       setTrace(traceRes);
+      setCaseDNA(dnaRes);
+      setNextAction(nbaRes);
+      setDebates(debateRes?.conflicts || []);
+      setSimilarCases(simRes?.similar_cases || []);
 
       if (detailRes?.customer_id) {
         const c360 = await getCustomer360(detailRes.customer_id).catch(() => null);
@@ -436,35 +458,59 @@ export const CaseDetailView: React.FC<Props> = ({ caseId, onBack }) => {
         {/* ========================================================= */}
         <div className="lg:col-span-4 bg-slate-900/80 border border-slate-800 rounded-2xl flex flex-col h-[760px] backdrop-blur-md overflow-hidden">
           {/* Tab Navigation */}
-          <div className="flex items-center border-b border-slate-800 bg-slate-800/40 p-1">
+          <div className="flex items-center border-b border-slate-800 bg-slate-800/40 p-1 overflow-x-auto gap-1">
             <button
               onClick={() => setActiveRightTab('trace')}
-              className={`flex-1 py-2 text-xs font-semibold rounded-lg transition-all ${
-                activeRightTab === 'trace' ? 'bg-cyan-500 text-slate-950 shadow-md' : 'text-slate-400 hover:text-white'
+              className={`px-3 py-1.5 text-xs font-semibold rounded-lg whitespace-nowrap transition-all ${
+                activeRightTab === 'trace' ? 'bg-cyan-500 text-slate-950 shadow-md font-bold' : 'text-slate-400 hover:text-white'
               }`}
             >
               AI Trace
             </button>
             <button
+              onClick={() => setActiveRightTab('dna')}
+              className={`px-3 py-1.5 text-xs font-semibold rounded-lg whitespace-nowrap transition-all ${
+                activeRightTab === 'dna' ? 'bg-cyan-500 text-slate-950 shadow-md font-bold' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              Case DNA
+            </button>
+            <button
+              onClick={() => setActiveRightTab('nba')}
+              className={`px-3 py-1.5 text-xs font-semibold rounded-lg whitespace-nowrap transition-all ${
+                activeRightTab === 'nba' ? 'bg-cyan-500 text-slate-950 shadow-md font-bold' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              Next Best Action
+            </button>
+            <button
+              onClick={() => setActiveRightTab('debates')}
+              className={`px-3 py-1.5 text-xs font-semibold rounded-lg whitespace-nowrap transition-all ${
+                activeRightTab === 'debates' ? 'bg-cyan-500 text-slate-950 shadow-md font-bold' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              Debates ({debates.length})
+            </button>
+            <button
+              onClick={() => setActiveRightTab('similar')}
+              className={`px-3 py-1.5 text-xs font-semibold rounded-lg whitespace-nowrap transition-all ${
+                activeRightTab === 'similar' ? 'bg-cyan-500 text-slate-950 shadow-md font-bold' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              Similar ({similarCases.length})
+            </button>
+            <button
               onClick={() => setActiveRightTab('evidence')}
-              className={`flex-1 py-2 text-xs font-semibold rounded-lg transition-all ${
-                activeRightTab === 'evidence' ? 'bg-cyan-500 text-slate-950 shadow-md' : 'text-slate-400 hover:text-white'
+              className={`px-3 py-1.5 text-xs font-semibold rounded-lg whitespace-nowrap transition-all ${
+                activeRightTab === 'evidence' ? 'bg-cyan-500 text-slate-950 shadow-md font-bold' : 'text-slate-400 hover:text-white'
               }`}
             >
               Evidence
             </button>
             <button
-              onClick={() => setActiveRightTab('decision')}
-              className={`flex-1 py-2 text-xs font-semibold rounded-lg transition-all ${
-                activeRightTab === 'decision' ? 'bg-cyan-500 text-slate-950 shadow-md' : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              Decision & Risk
-            </button>
-            <button
               onClick={() => setActiveRightTab('actions')}
-              className={`flex-1 py-2 text-xs font-semibold rounded-lg transition-all ${
-                activeRightTab === 'actions' ? 'bg-cyan-500 text-slate-950 shadow-md' : 'text-slate-400 hover:text-white'
+              className={`px-3 py-1.5 text-xs font-semibold rounded-lg whitespace-nowrap transition-all ${
+                activeRightTab === 'actions' ? 'bg-cyan-500 text-slate-950 shadow-md font-bold' : 'text-slate-400 hover:text-white'
               }`}
             >
               Actions
@@ -504,7 +550,185 @@ export const CaseDetailView: React.FC<Props> = ({ caseId, onBack }) => {
               </div>
             )}
 
-            {/* TAB 2: EVIDENCE & TOOLS */}
+            {/* TAB 2: CASE DNA FINGERPRINT */}
+            {activeRightTab === 'dna' && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Case DNA Fingerprint</span>
+                  <span className="text-[10px] font-mono text-cyan-400 bg-cyan-500/10 px-2 py-0.5 rounded border border-cyan-500/20">
+                    {caseDNA?.fingerprint_hash?.slice(0, 12) || 'HASH-ACTIVE'}
+                  </span>
+                </div>
+
+                {caseDNA ? (
+                  <div className="space-y-3 text-xs">
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="p-2.5 rounded-xl bg-slate-800/50 border border-slate-700/50">
+                        <div className="text-[10px] text-slate-400 uppercase">Intent</div>
+                        <div className="font-bold text-white capitalize">{caseDNA.intent?.replace(/_/g, ' ')}</div>
+                      </div>
+                      <div className="p-2.5 rounded-xl bg-slate-800/50 border border-slate-700/50">
+                        <div className="text-[10px] text-slate-400 uppercase">Urgency</div>
+                        <div className="font-bold text-amber-400 uppercase">{caseDNA.urgency}</div>
+                      </div>
+                      <div className="p-2.5 rounded-xl bg-slate-800/50 border border-slate-700/50">
+                        <div className="text-[10px] text-slate-400 uppercase">Policy Complexity</div>
+                        <div className="font-bold text-purple-300 capitalize">{caseDNA.policy_complexity}</div>
+                      </div>
+                      <div className="p-2.5 rounded-xl bg-slate-800/50 border border-slate-700/50">
+                        <div className="text-[10px] text-slate-400 uppercase">Operational Risk</div>
+                        <div className="font-bold text-emerald-400 uppercase">{caseDNA.operational_risk}</div>
+                      </div>
+                    </div>
+
+                    <div className="p-3 rounded-xl bg-slate-800/50 border border-slate-700/50 space-y-2">
+                      <div className="text-[10px] font-semibold text-cyan-400 uppercase font-mono">
+                        Activated Agent Capabilities
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {caseDNA.required_capabilities?.map((cap, idx) => (
+                          <span key={idx} className="px-2 py-0.5 rounded-md bg-cyan-500/15 border border-cyan-500/30 text-[10px] font-mono text-cyan-300">
+                            {cap}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-16 text-xs text-slate-500">
+                    Case DNA fingerprint will be calculated upon agent triage.
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* TAB 3: NEXT-BEST-ACTION ENGINE */}
+            {activeRightTab === 'nba' && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Next-Best-Action Proposals</span>
+                  <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+                    Safe Routing
+                  </span>
+                </div>
+
+                {nextAction ? (
+                  <div className="space-y-3 text-xs">
+                    <div className="p-3.5 rounded-xl bg-gradient-to-tr from-cyan-950/40 to-slate-800/80 border border-cyan-500/40 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-white text-sm">{nextAction.recommended_action}</span>
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold font-mono bg-cyan-500/20 text-cyan-300">
+                          Primary
+                        </span>
+                      </div>
+                      <p className="text-slate-300 text-[11px] leading-relaxed">
+                        {nextAction.justification}
+                      </p>
+                      <div className="pt-2 border-t border-slate-700/60 flex items-center justify-between text-[10px] font-mono">
+                        <span className="text-slate-400">Policy: <strong className="text-slate-200">{nextAction.policy_basis}</strong></span>
+                        <span className="text-emerald-400 font-bold">{nextAction.risk_level} RISK</span>
+                      </div>
+                    </div>
+
+                    {nextAction.alternatives && nextAction.alternatives.length > 0 && (
+                      <div className="space-y-2 pt-2">
+                        <span className="text-[10px] font-semibold text-slate-400 uppercase font-mono">Alternative Remedies</span>
+                        {nextAction.alternatives.map((alt, idx) => (
+                          <div key={idx} className="p-2.5 rounded-lg bg-slate-800/40 border border-slate-700/40 space-y-1">
+                            <div className="flex items-center justify-between font-semibold text-slate-200">
+                              <span>{alt.label || alt.action_type}</span>
+                              <span className="text-cyan-400 font-mono text-[10px]">{Math.round(alt.confidence * 100)}% Match</span>
+                            </div>
+                            <p className="text-[11px] text-slate-400">{alt.reason}</p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="text-center py-16 text-xs text-slate-500">
+                    No active Next-Best-Action proposal calculated.
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* TAB 4: AGENT DEBATE & CONFLICT RESOLUTION */}
+            {activeRightTab === 'debates' && (
+              <div className="space-y-4">
+                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Multi-Agent Debate Log</span>
+
+                <div className="space-y-3 text-xs">
+                  {debates.map((d, idx) => (
+                    <div key={idx} className="p-3.5 rounded-xl bg-slate-800/50 border border-slate-700/60 space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-amber-300">Debate Resolved by {d.resolved_by}</span>
+                        <span className="text-[10px] font-mono text-slate-400">
+                          {new Date(d.timestamp).toLocaleTimeString()}
+                        </span>
+                      </div>
+
+                      {d.conflicting_points && d.conflicting_points.length > 0 && (
+                        <div className="space-y-1">
+                          <span className="text-[10px] text-slate-400 uppercase font-mono">Contested Points:</span>
+                          {d.conflicting_points.map((pt, pIdx) => (
+                            <div key={pIdx} className="text-[11px] text-slate-300 bg-slate-900/60 p-2 rounded border border-slate-800">
+                              • {pt}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      <div className="p-2.5 rounded-lg bg-emerald-950/20 border border-emerald-500/30 text-[11px] text-emerald-200">
+                        <strong>Resolution Rationale:</strong> {d.resolution_rationale}
+                      </div>
+                    </div>
+                  ))}
+
+                  {debates.length === 0 && (
+                    <div className="text-center py-16 text-xs text-slate-500">
+                      No agent conflicts or debate records for this case. Consensus achieved.
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* TAB 5: SIMILAR CASES EVIDENCE */}
+            {activeRightTab === 'similar' && (
+              <div className="space-y-4">
+                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Historical Case Matches</span>
+
+                <div className="space-y-2.5 text-xs">
+                  {similarCases.map((sim, idx) => (
+                    <div key={idx} className="p-3 rounded-xl bg-slate-800/40 border border-slate-700/50 space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <span className="font-mono font-bold text-cyan-300">{sim.case_id}</span>
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-cyan-500/15 text-cyan-300 font-mono border border-cyan-500/30">
+                          {Math.round(sim.similarity_score * 100)}% Match
+                        </span>
+                      </div>
+                      <div className="font-semibold text-slate-200">{sim.subject}</div>
+                      <p className="text-[11px] text-slate-400 leading-snug">
+                        {sim.resolution_summary || 'Resolved with standard operational workflow.'}
+                      </p>
+                      <div className="flex items-center justify-between text-[10px] text-slate-500 pt-1 border-t border-slate-700/40 font-mono">
+                        <span>Outcome: <strong className="text-emerald-400">{sim.outcome || 'RESOLVED'}</strong></span>
+                        <span>{sim.was_escalated ? 'Escalated' : 'Autonomous'}</span>
+                      </div>
+                    </div>
+                  ))}
+
+                  {similarCases.length === 0 && (
+                    <div className="text-center py-16 text-xs text-slate-500">
+                      No historical precedent cases found.
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* TAB 6: EVIDENCE & TOOLS */}
             {activeRightTab === 'evidence' && (
               <div className="space-y-4">
                 <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Diagnostic Evidence Dossier</span>
@@ -533,33 +757,7 @@ export const CaseDetailView: React.FC<Props> = ({ caseId, onBack }) => {
               </div>
             )}
 
-            {/* TAB 3: DECISION & RISK */}
-            {activeRightTab === 'decision' && (
-              <div className="space-y-4">
-                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Policy & Risk Evaluation</span>
-
-                <div className="p-4 rounded-xl bg-slate-800/60 border border-slate-700/60 space-y-3 text-xs">
-                  <div className="flex items-center justify-between">
-                    <span className="text-slate-400 font-medium">Recommended Remedy:</span>
-                    <span className="font-bold text-emerald-400 font-mono uppercase">Resolve / Compensation</span>
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <span className="text-slate-400 font-medium">Risk Score:</span>
-                    <span className="font-bold text-emerald-400 font-mono">0.12 (LOW RISK)</span>
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <span className="text-slate-400 font-medium">Human Review Gate:</span>
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-400">
-                      Auto-Authorized
-                    </span>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* TAB 4: ACTIONS & GATEWAY APPROVALS */}
+            {/* TAB 7: ACTIONS & GATEWAY APPROVALS */}
             {activeRightTab === 'actions' && (
               <div className="space-y-4">
                 <div className="flex items-center justify-between">

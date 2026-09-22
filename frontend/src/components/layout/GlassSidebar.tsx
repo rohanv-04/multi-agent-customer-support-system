@@ -21,6 +21,8 @@ export type NavTab =
   | 'agents'
   | 'automations'
   | 'knowledge'
+  | 'root_causes'
+  | 'simulation'
   | 'analytics'
   | 'evaluations'
   | 'audit'
@@ -40,11 +42,13 @@ export const GlassSidebar: React.FC<Props> = ({ activeTab, onSelectTab, escalati
     { id: 'overview' as NavTab, label: 'Overview', icon: LayoutDashboard },
     { id: 'cases' as NavTab, label: 'Cases', icon: Layers, badge: escalationCount },
     { id: 'customers' as NavTab, label: 'Customers', icon: Users },
+    { id: 'root_causes' as NavTab, label: 'Root Causes', icon: Activity },
+    { id: 'simulation' as NavTab, label: 'Simulation Lab', icon: FlaskConical },
     { id: 'agents' as NavTab, label: 'Agents', icon: Bot },
     { id: 'automations' as NavTab, label: 'Automations', icon: Zap },
     { id: 'knowledge' as NavTab, label: 'Knowledge', icon: BookOpen },
     { id: 'analytics' as NavTab, label: 'Analytics', icon: BarChart3 },
-    { id: 'evaluations' as NavTab, label: 'Evaluations', icon: FlaskConical },
+    { id: 'evaluations' as NavTab, label: 'Evaluations', icon: Shield },
     { id: 'audit' as NavTab, label: 'Audit Logs', icon: Shield },
     { id: 'settings' as NavTab, label: 'Settings', icon: Settings },
     { id: 'chat' as NavTab, label: 'Customer Chat', icon: MessageSquareText, highlight: true },

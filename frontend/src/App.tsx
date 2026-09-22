@@ -15,6 +15,8 @@ import { AnalyticsView } from './pages/AnalyticsView';
 import { EvaluationLabView } from './pages/EvaluationLabView';
 import { AuditLogExplorerView } from './pages/AuditLogExplorerView';
 import { UserManagementView } from './pages/UserManagementView';
+import { RootCausesView } from './pages/RootCausesView';
+import { SimulationLabView } from './pages/SimulationLabView';
 import { AuthProvider } from './context/AuthContext';
 import { AgentModal } from './components/agents/AgentModal';
 import { Customer, AgentInfo, AnalyticsData, AIState } from './types';
@@ -153,6 +155,10 @@ export function AppContent() {
           {activeTab === 'automations' && <AutomationsView />}
 
           {activeTab === 'knowledge' && <KnowledgeView />}
+
+          {activeTab === 'root_causes' && <RootCausesView />}
+
+          {activeTab === 'simulation' && <SimulationLabView />}
 
           {activeTab === 'analytics' && <AnalyticsView analytics={analytics} />}
 

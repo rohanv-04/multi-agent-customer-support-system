@@ -1,0 +1,35 @@
+from typing import TypedDict, List, Dict, Any, Optional
+
+class AgenticSupportState(TypedDict):
+    task_id: str
+    customer_id: str
+    conversation_id: str
+    user_goal: str
+    messages: List[Dict[str, Any]]
+    
+    # Intent & extraction
+    intent: Dict[str, Any]
+    
+    # Planning & progression
+    plan: List[str]
+    completed_steps: List[str]
+    pending_steps: List[str]
+    
+    # Execution telemetry
+    agent_outputs: List[Dict[str, Any]]
+    tool_calls: List[Dict[str, Any]]
+    observations: List[Dict[str, Any]]
+    retrieved_docs: List[Dict[str, Any]]
+    
+    # Decision controls
+    confidence: float
+    status: str
+    requires_escalation: bool
+    replan_count: int
+    iteration_count: int
+    critic_result: Dict[str, Any]
+    escalation_dossier: Optional[Dict[str, Any]]
+    
+    # Final resolution
+    final_response: str
+    execution_trace: List[Dict[str, Any]]

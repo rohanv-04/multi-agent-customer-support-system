@@ -7,6 +7,7 @@ from .models import (
     Base,
     get_utc_now,
     Organization,
+    User,
     Customer,
     Order,
     Conversation,
@@ -66,10 +67,19 @@ def check_and_migrate_db():
                 conn.execute(text("ALTER TABLE agent_actions ADD COLUMN result_metadata TEXT"))
                 conn.commit()
 
-            # Check escalations.case_id
+            # Check escalations.case_id & organization_id
             cols_esc = [row[1] for row in conn.execute(text("PRAGMA table_info(escalations)")).fetchall()]
             if "case_id" not in cols_esc:
                 conn.execute(text("ALTER TABLE escalations ADD COLUMN case_id VARCHAR(50)"))
+                conn.commit()
+            if "organization_id" not in cols_esc:
+                conn.execute(text("ALTER TABLE escalations ADD COLUMN organization_id VARCHAR(50) DEFAULT 'ORG-NOVACART'"))
+                conn.commit()
+
+            # Check audit_logs.organization_id
+            cols_audit = [row[1] for row in conn.execute(text("PRAGMA table_info(audit_logs)")).fetchall()]
+            if "organization_id" not in cols_audit:
+                conn.execute(text("ALTER TABLE audit_logs ADD COLUMN organization_id VARCHAR(50) DEFAULT 'ORG-NOVACART'"))
                 conn.commit()
     except Exception as e:
         print(f"[Migration Notice]: {e}")
@@ -97,11 +107,72 @@ def seed_demo_data():
             db.add(org)
             db.commit()
 
+        # Ensure secondary tenant organization exists for multi-tenant testing
+        acme_org = db.query(Organization).filter(Organization.id == "ORG-ACME").first()
+        if not acme_org:
+            acme_org = Organization(
+                id="ORG-ACME",
+                name="Acme Corporation",
+                slug="acmecorp",
+                plan_tier="Enterprise",
+                created_at=now
+            )
+            db.add(acme_org)
+            db.commit()
+
+        # Seed Standard RBAC Users if not present
+        if db.query(User).count() == 0:
+            from ..services.auth_service import auth_service
+            default_pwd = auth_service.hash_password("password123")
+            demo_users = [
+                User(id="USR-ADMIN-01", organization_id="ORG-NOVACART", email="admin@novacart.com", hashed_password=default_pwd, name="Alice Admin", role="ADMIN", is_active=True, created_at=now),
+                User(id="USR-MGR-01", organization_id="ORG-NOVACART", email="manager@novacart.com", hashed_password=default_pwd, name="Mona Manager", role="MANAGER", is_active=True, created_at=now),
+                User(id="USR-SUP-01", organization_id="ORG-NOVACART", email="supervisor@novacart.com", hashed_password=default_pwd, name="Sam Supervisor", role="SUPERVISOR", is_active=True, created_at=now),
+                User(id="USR-AGT-01", organization_id="ORG-NOVACART", email="agent@novacart.com", hashed_password=default_pwd, name="Bob Agent", role="SUPPORT_AGENT", is_active=True, created_at=now),
+                User(id="USR-CUST-01", organization_id="ORG-NOVACART", email="customer@novacart.com", hashed_password=default_pwd, name="Charlie Customer", role="CUSTOMER", is_active=True, created_at=now),
+                # Tenant 2 (Acme Corp)
+                User(id="USR-ACME-ADMIN", organization_id="ORG-ACME", email="acme_admin@acmecorp.com", hashed_password=default_pwd, name="Acme Admin", role="ADMIN", is_active=True, created_at=now),
+                User(id="USR-ACME-AGT", organization_id="ORG-ACME", email="acme_agent@acmecorp.com", hashed_password=default_pwd, name="Acme Agent", role="SUPPORT_AGENT", is_active=True, created_at=now),
+                User(id="USR-ACME-CUST", organization_id="ORG-ACME", email="acme_customer@acmecorp.com", hashed_password=default_pwd, name="Acme Customer", role="CUSTOMER", is_active=True, created_at=now),
+            ]
+            db.add_all(demo_users)
+            db.commit()
+
         # Update existing customers with default organization_id if null
         db.query(Customer).filter(Customer.organization_id.is_(None)).update(
             {"organization_id": "ORG-NOVACART"}, synchronize_session=False
         )
         db.commit()
+
+        # Seed Acme Corp tenant customer and order for cross-tenant testing if absent
+        acme_cust = db.query(Customer).filter(Customer.customer_id == "CUST2001").first()
+        if not acme_cust:
+            acme_cust = Customer(
+                customer_id="CUST2001",
+                organization_id="ORG-ACME",
+                name="Acme Client",
+                email="client@acmecorp.com",
+                phone="+1-555-0999",
+                tier="Platinum",
+                account_status="Active",
+                created_at=now
+            )
+            db.add(acme_cust)
+            acme_order = Order(
+                order_id="ORD20001",
+                customer_id="CUST2001",
+                status="Shipped",
+                items_json=json.dumps([{"item_id": "ITM-900", "name": "Acme Industrial Router", "qty": 1, "price": 1200.00}]),
+                total_amount=1200.00,
+                currency="USD",
+                tracking_number="ACM-110099",
+                carrier="NovaExpress",
+                order_date=now - datetime.timedelta(days=2),
+                expected_delivery=now + datetime.timedelta(days=1),
+                delay_reason=None
+            )
+            db.add(acme_order)
+            db.commit()
 
         # Check if customer demo data is already seeded
         if db.query(Customer).count() > 0:

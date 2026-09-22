@@ -1,26 +1,32 @@
-import React from 'react';
 import {
   LayoutDashboard,
-  MessageSquareText,
-  Network,
-  ListTodo,
-  Brain,
+  Layers,
+  Users,
+  Bot,
+  Zap,
   BookOpen,
-  UserCheck,
   BarChart3,
-  Settings
+  FlaskConical,
+  Shield,
+  Settings,
+  MessageSquareText,
+  Activity
 } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
 
 export type NavTab =
-  | 'dashboard'
-  | 'chat'
-  | 'workflow'
-  | 'tasks'
-  | 'memory'
+  | 'overview'
+  | 'cases'
+  | 'customers'
+  | 'agents'
+  | 'automations'
   | 'knowledge'
-  | 'escalations'
   | 'analytics'
-  | 'settings';
+  | 'evaluations'
+  | 'audit'
+  | 'settings'
+  | 'chat'
+  | 'workflow';
 
 interface Props {
   activeTab: NavTab;
@@ -29,16 +35,19 @@ interface Props {
 }
 
 export const GlassSidebar: React.FC<Props> = ({ activeTab, onSelectTab, escalationCount = 0 }) => {
+  const { user } = useAuth();
   const navItems = [
-    { id: 'dashboard' as NavTab, label: 'Dashboard', icon: LayoutDashboard },
-    { id: 'chat' as NavTab, label: 'Customer Chat', icon: MessageSquareText, highlight: true },
-    { id: 'workflow' as NavTab, label: 'Agent Workflow', icon: Network },
-    { id: 'tasks' as NavTab, label: 'Tasks', icon: ListTodo },
-    { id: 'memory' as NavTab, label: 'Memory', icon: Brain },
-    { id: 'knowledge' as NavTab, label: 'Knowledge Base', icon: BookOpen },
-    { id: 'escalations' as NavTab, label: 'Escalations', icon: UserCheck, badge: escalationCount },
+    { id: 'overview' as NavTab, label: 'Overview', icon: LayoutDashboard },
+    { id: 'cases' as NavTab, label: 'Cases', icon: Layers, badge: escalationCount },
+    { id: 'customers' as NavTab, label: 'Customers', icon: Users },
+    { id: 'agents' as NavTab, label: 'Agents', icon: Bot },
+    { id: 'automations' as NavTab, label: 'Automations', icon: Zap },
+    { id: 'knowledge' as NavTab, label: 'Knowledge', icon: BookOpen },
     { id: 'analytics' as NavTab, label: 'Analytics', icon: BarChart3 },
+    { id: 'evaluations' as NavTab, label: 'Evaluations', icon: FlaskConical },
+    { id: 'audit' as NavTab, label: 'Audit Logs', icon: Shield },
     { id: 'settings' as NavTab, label: 'Settings', icon: Settings },
+    { id: 'chat' as NavTab, label: 'Customer Chat', icon: MessageSquareText, highlight: true },
   ];
 
   return (
@@ -86,14 +95,16 @@ export const GlassSidebar: React.FC<Props> = ({ activeTab, onSelectTab, escalati
           })}
         </div>
 
-        {/* System Footnote */}
+        {/* Tenant & Role Footnote */}
         <div className="p-3 rounded-xl bg-white/[0.02] border border-white/[0.05] text-[11px] text-slate-400">
           <div className="flex items-center justify-between text-slate-300 font-medium mb-1">
-            <span>LangGraph Engine</span>
-            <span className="text-emerald-400 text-[10px]">v1.0 Ready</span>
+            <span className="font-mono text-cyan-400">{user?.organization_id || 'ORG-NOVACART'}</span>
+            <span className="text-amber-400 text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-400/10 border border-amber-400/20">
+              {user?.role || 'ADMIN'}
+            </span>
           </div>
-          <p className="text-[10px] text-slate-400 leading-relaxed">
-            Real dynamic routing, replanning loop, & controlled database tools.
+          <p className="text-[10px] text-slate-400 leading-relaxed truncate">
+            {user?.email || 'admin@novacart.com'}
           </p>
         </div>
       </div>

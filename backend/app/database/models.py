@@ -29,8 +29,25 @@ class Organization(Base):
     plan_tier = Column(String(50), default="Enterprise")
     created_at = Column(DateTime, default=get_utc_now)
 
+    users = relationship("User", back_populates="organization")
     customers = relationship("Customer", back_populates="organization")
     cases = relationship("SupportCase", back_populates="organization")
+
+
+class User(Base):
+    """Enterprise user account with role-based access control and tenant assignment."""
+    __tablename__ = "users"
+
+    id = Column(String(50), primary_key=True)  # e.g. USR-ADMIN-01
+    organization_id = Column(String(50), ForeignKey("organizations.id"), nullable=False, default="ORG-NOVACART")
+    email = Column(String(100), nullable=False, unique=True)
+    hashed_password = Column(String(255), nullable=False)
+    name = Column(String(100), nullable=False)
+    role = Column(String(50), nullable=False, default="SUPPORT_AGENT")  # CUSTOMER, SUPPORT_AGENT, SUPERVISOR, MANAGER, ADMIN
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=get_utc_now)
+
+    organization = relationship("Organization", back_populates="users")
 
 
 class Customer(Base):
@@ -272,6 +289,7 @@ class EscalationTicket(Base):
     __tablename__ = "escalations"
 
     ticket_id = Column(String(50), primary_key=True)
+    organization_id = Column(String(50), ForeignKey("organizations.id"), nullable=True, default="ORG-NOVACART")
     case_id = Column(String(50), ForeignKey("cases.id"), nullable=True)
     customer_id = Column(String(50), ForeignKey("customers.customer_id"), nullable=False)
     task_id = Column(String(100), nullable=True)
@@ -297,11 +315,12 @@ class AuditLog(Base):
     __tablename__ = "audit_logs"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
+    organization_id = Column(String(50), ForeignKey("organizations.id"), nullable=True, default="ORG-NOVACART")
     case_id = Column(String(50), ForeignKey("cases.id"), nullable=True)
-    entity_type = Column(String(50), nullable=False)  # SupportCase, Refund, EscalationTicket, AgentAction, System
+    entity_type = Column(String(50), nullable=False)  # SupportCase, Refund, EscalationTicket, AgentAction, System, User, Policy
     entity_id = Column(String(100), nullable=False)
-    action = Column(String(100), nullable=False)  # CASE_CREATED, STATUS_CHANGED, REFUND_PROCESSED, ESCALATED, etc.
-    actor_type = Column(String(50), default="system")  # system, agent, supervisor, user
+    action = Column(String(100), nullable=False)  # CASE_CREATED, STATUS_CHANGED, REFUND_PROCESSED, ESCALATED, LOGIN, USER_CREATED, etc.
+    actor_type = Column(String(50), default="system")  # system, agent, supervisor, user, admin
     actor_id = Column(String(100), default="system")
     details_json = Column(Text, nullable=True)
     created_at = Column(DateTime, default=get_utc_now)

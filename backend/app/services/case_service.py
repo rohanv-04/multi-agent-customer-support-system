@@ -217,10 +217,13 @@ class CaseService:
         customer_id: Optional[str] = None,
         channel: Optional[str] = None,
         search: Optional[str] = None,
+        organization_id: Optional[str] = None,
         limit: int = 50,
         offset: int = 0
     ) -> List[SupportCase]:
         query = db.query(SupportCase)
+        if organization_id:
+            query = query.filter(SupportCase.organization_id == organization_id)
         if status:
             query = query.filter(SupportCase.status == status.upper())
         if priority:

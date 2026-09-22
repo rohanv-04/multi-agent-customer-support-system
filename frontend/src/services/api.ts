@@ -102,6 +102,99 @@ export async function getTasks(customerId?: string) {
   return res.json();
 }
 
+export async function getCases(params?: {
+  status?: string;
+  priority?: string;
+  customer_id?: string;
+  channel?: string;
+  search?: string;
+  limit?: number;
+  offset?: number;
+}) {
+  const query = new URLSearchParams();
+  if (params?.status && params.status !== 'ALL') query.append('status', params.status);
+  if (params?.priority && params.priority !== 'ALL') query.append('priority', params.priority);
+  if (params?.customer_id) query.append('customer_id', params.customer_id);
+  if (params?.channel && params.channel !== 'ALL') query.append('channel', params.channel);
+  if (params?.search) query.append('search', params.search);
+  if (params?.limit) query.append('limit', params.limit.toString());
+  if (params?.offset) query.append('offset', params.offset.toString());
+
+  const res = await fetch(`${API_BASE_URL}/api/cases?${query.toString()}`, {
+    headers: getAuthHeaders()
+  });
+  if (!res.ok) throw new Error(`Failed to fetch cases: ${res.statusText}`);
+  return res.json();
+}
+
+export async function getCaseDetail(caseId: string) {
+  const res = await fetch(`${API_BASE_URL}/api/cases/${caseId}`, {
+    headers: getAuthHeaders()
+  });
+  if (!res.ok) throw new Error(`Failed to fetch case detail: ${res.statusText}`);
+  return res.json();
+}
+
+export async function createCase(data: {
+  customer_id: string;
+  subject: string;
+  description?: string;
+  priority?: string;
+  channel?: string;
+  initial_message?: string;
+  organization_id?: string;
+}) {
+  const res = await fetch(`${API_BASE_URL}/api/cases`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify(data)
+  });
+  if (!res.ok) throw new Error(`Failed to create case: ${res.statusText}`);
+  return res.json();
+}
+
+export async function getCaseTimeline(caseId: string) {
+  const res = await fetch(`${API_BASE_URL}/api/cases/${caseId}/timeline`, {
+    headers: getAuthHeaders()
+  });
+  if (!res.ok) throw new Error(`Failed to fetch timeline: ${res.statusText}`);
+  return res.json();
+}
+
+export async function addCaseMessage(caseId: string, data: {
+  body: string;
+  direction?: string;
+  channel?: string;
+  sender_type?: string;
+  sender_id?: string;
+}) {
+  const res = await fetch(`${API_BASE_URL}/api/cases/${caseId}/messages`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify(data)
+  });
+  if (!res.ok) throw new Error(`Failed to add message: ${res.statusText}`);
+  return res.json();
+}
+
+export async function updateCaseStatus(caseId: string, status: string, actor: string = 'Agent') {
+  const res = await fetch(`${API_BASE_URL}/api/cases/${caseId}`, {
+    method: 'PATCH',
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ status })
+  });
+  if (!res.ok) throw new Error(`Failed to update status: ${res.statusText}`);
+  return res.json();
+}
+
+export async function reviewActionRequest(actionId: string, status: string, reviewer: string, reason?: string) {
+  // Action approval / review simulation & execution
+  const res = await fetch(`${API_BASE_URL}/api/escalations`, {
+    headers: getAuthHeaders()
+  });
+  return { action_id: actionId, status, reviewer, reason };
+}
+
 export async function getTaskDetail(taskId: string) {
   const res = await fetch(`${API_BASE_URL}/api/tasks/${taskId}`);
   return res.json();
@@ -172,5 +265,190 @@ export async function getAnalytics() {
 
 export async function getCustomers() {
   const res = await fetch(`${API_BASE_URL}/api/customers`);
+  return res.json();
+}
+
+// ----------------- OBSERVABILITY, EVALUATION & AUDIT -----------------
+
+export async function getCaseTrace(caseId: string) {
+  const res = await fetch(`${API_BASE_URL}/api/observability/cases/${caseId}/trace`);
+  if (!res.ok) throw new Error(`Failed to fetch case trace: ${res.statusText}`);
+  return res.json();
+}
+
+export async function getAgentPerformance() {
+  const res = await fetch(`${API_BASE_URL}/api/observability/agents`);
+  if (!res.ok) throw new Error(`Failed to fetch agent performance: ${res.statusText}`);
+  return res.json();
+}
+
+export async function getToolPerformance() {
+  const res = await fetch(`${API_BASE_URL}/api/observability/tools`);
+  if (!res.ok) throw new Error(`Failed to fetch tool performance: ${res.statusText}`);
+  return res.json();
+}
+
+export async function getFailureAnalysis() {
+  const res = await fetch(`${API_BASE_URL}/api/observability/failures`);
+  if (!res.ok) throw new Error(`Failed to fetch failure analysis: ${res.statusText}`);
+  return res.json();
+}
+
+export async function getBenchmarks(category?: string) {
+  const url = category ? `${API_BASE_URL}/api/evaluations/benchmarks?category=${category}` : `${API_BASE_URL}/api/evaluations/benchmarks`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Failed to fetch benchmarks: ${res.statusText}`);
+  return res.json();
+}
+
+export async function runEvaluationSuite(categories?: string[], maxCases?: number, name?: string) {
+  const res = await fetch(`${API_BASE_URL}/api/evaluations/run`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ categories, max_cases: maxCases, name })
+  });
+  if (!res.ok) throw new Error(`Evaluation run failed: ${res.statusText}`);
+  return res.json();
+}
+
+export async function getEvaluationRuns() {
+  const res = await fetch(`${API_BASE_URL}/api/evaluations/runs`);
+  if (!res.ok) throw new Error(`Failed to fetch evaluation runs: ${res.statusText}`);
+  return res.json();
+}
+
+export async function getEvaluationRunDetail(runId: string) {
+  const res = await fetch(`${API_BASE_URL}/api/evaluations/runs/${runId}`);
+  if (!res.ok) throw new Error(`Failed to fetch evaluation run details: ${res.statusText}`);
+  return res.json();
+}
+
+export async function getAuditLogs(params?: {
+  case_id?: string;
+  entity_type?: string;
+  action?: string;
+  actor_type?: string;
+  search?: string;
+  limit?: number;
+  offset?: number;
+}) {
+  const query = new URLSearchParams();
+  if (params?.case_id) query.append('case_id', params.case_id);
+  if (params?.entity_type) query.append('entity_type', params.entity_type);
+  if (params?.action) query.append('action', params.action);
+  if (params?.actor_type) query.append('actor_type', params.actor_type);
+  if (params?.search) query.append('search', params.search);
+  if (params?.limit) query.append('limit', params.limit.toString());
+  if (params?.offset) query.append('offset', params.offset.toString());
+
+  const res = await fetch(`${API_BASE_URL}/api/audit/logs?${query.toString()}`, {
+    headers: getAuthHeaders()
+  });
+  if (!res.ok) throw new Error(`Failed to fetch audit logs: ${res.statusText}`);
+  return res.json();
+}
+
+// ------------------- Enterprise Auth & RBAC APIs -------------------
+
+let _authToken: string | null = localStorage.getItem('supportos_jwt_token');
+
+export function setAuthToken(token: string | null) {
+  _authToken = token;
+  if (token) {
+    localStorage.setItem('supportos_jwt_token', token);
+  } else {
+    localStorage.removeItem('supportos_jwt_token');
+  }
+}
+
+export function getAuthToken(): string | null {
+  if (!_authToken) {
+    _authToken = localStorage.getItem('supportos_jwt_token');
+  }
+  return _authToken;
+}
+
+export function getAuthHeaders(): Record<string, string> {
+  const token = getAuthToken();
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  return headers;
+}
+
+export async function loginUser(email: string, password: string, organizationId?: string) {
+  const res = await fetch(`${API_BASE_URL}/api/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password, organization_id: organizationId })
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(err.detail || 'Authentication failed');
+  }
+  const data = await res.json();
+  setAuthToken(data.access_token);
+  return data;
+}
+
+export async function getCurrentUser() {
+  const res = await fetch(`${API_BASE_URL}/api/auth/me`, {
+    headers: getAuthHeaders()
+  });
+  if (!res.ok) throw new Error(`Failed to fetch current user: ${res.statusText}`);
+  return res.json();
+}
+
+export async function switchUserRole(role: string, organizationId: string = 'ORG-NOVACART') {
+  const res = await fetch(`${API_BASE_URL}/api/auth/switch-role?role=${role}&organization_id=${organizationId}`, {
+    method: 'POST',
+    headers: getAuthHeaders()
+  });
+  if (!res.ok) throw new Error(`Failed to switch role: ${res.statusText}`);
+  const data = await res.json();
+  setAuthToken(data.access_token);
+  return data;
+}
+
+export async function listTenantUsers() {
+  const res = await fetch(`${API_BASE_URL}/api/auth/users`, {
+    headers: getAuthHeaders()
+  });
+  if (!res.ok) throw new Error(`Failed to fetch users: ${res.statusText}`);
+  return res.json();
+}
+
+export async function createTenantUser(data: { email: string; password: string; name: string; role: string; organization_id?: string }) {
+  const res = await fetch(`${API_BASE_URL}/api/auth/users`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify(data)
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(err.detail || 'User creation failed');
+  }
+  return res.json();
+}
+
+export async function updateTenantUserRole(userId: string, role: string, isActive?: boolean) {
+  const res = await fetch(`${API_BASE_URL}/api/auth/users/${userId}/role`, {
+    method: 'PATCH',
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ role, is_active: isActive })
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(err.detail || 'User update failed');
+  }
+  return res.json();
+}
+
+export async function listOrganizations() {
+  const res = await fetch(`${API_BASE_URL}/api/auth/organizations`, {
+    headers: getAuthHeaders()
+  });
+  if (!res.ok) throw new Error(`Failed to fetch organizations: ${res.statusText}`);
   return res.json();
 }

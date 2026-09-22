@@ -73,6 +73,37 @@ from .omnichannel import (
     SLAPolicyConfig,
     SLACheckResult
 )
+from .observability import (
+    ToolCallTrace,
+    TokenCostMetadata,
+    AgentRunTraceNode,
+    CaseExecutionTrace,
+    AgentPerformanceMetrics,
+    ToolPerformanceMetrics,
+    FailureAnalysisReport,
+    AuditLogFilter
+)
+from .evaluation import (
+    EvaluationCategory,
+    EvaluationBenchmarkCase,
+    EvaluationCaseResult,
+    EvaluationMetricSummary,
+    EvaluationRunSchema
+)
+
+from .auth import (
+    UserRole,
+    Permission,
+    ROLE_PERMISSIONS,
+    TokenPayload,
+    UserLoginRequest,
+    UserCreateRequest,
+    UserRoleUpdateRequest,
+    UserResponse,
+    TokenResponse,
+    OrganizationResponse,
+    SecurityAuditEntry
+)
 
 __all__ = [
     "CaseStatus",
@@ -133,5 +164,29 @@ __all__ = [
     "ProactiveImpactResult",
     "SLABreachStatus",
     "SLAPolicyConfig",
-    "SLACheckResult"
+    "SLACheckResult",
+    "ToolCallTrace",
+    "TokenCostMetadata",
+    "AgentRunTraceNode",
+    "CaseExecutionTrace",
+    "AgentPerformanceMetrics",
+    "ToolPerformanceMetrics",
+    "FailureAnalysisReport",
+    "AuditLogFilter",
+    "EvaluationCategory",
+    "EvaluationBenchmarkCase",
+    "EvaluationCaseResult",
+    "EvaluationMetricSummary",
+    "EvaluationRunSchema",
+    "UserRole",
+    "Permission",
+    "ROLE_PERMISSIONS",
+    "TokenPayload",
+    "UserLoginRequest",
+    "UserCreateRequest",
+    "UserRoleUpdateRequest",
+    "UserResponse",
+    "TokenResponse",
+    "OrganizationResponse",
+    "SecurityAuditEntry"
 ]

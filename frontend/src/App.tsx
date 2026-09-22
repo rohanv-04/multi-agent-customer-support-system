@@ -2,21 +2,28 @@ import React, { useState, useEffect } from 'react';
 import { AmbientBackground } from './components/layout/AmbientBackground';
 import { GlassNavbar } from './components/layout/GlassNavbar';
 import { GlassSidebar, NavTab } from './components/layout/GlassSidebar';
+import { CommandCenterView } from './pages/CommandCenterView';
+import { CasesManagementView } from './pages/CasesManagementView';
+import { CaseDetailView } from './pages/CaseDetailView';
+import { CustomersView } from './pages/CustomersView';
+import { AgentOperationsView } from './pages/AgentOperationsView';
+import { AutomationsView } from './pages/AutomationsView';
 import { CustomerChatView } from './pages/CustomerChatView';
-import { DashboardView } from './pages/DashboardView';
 import { AgentWorkflowView } from './pages/AgentWorkflowView';
-import { TasksView } from './pages/TasksView';
-import { MemoryView } from './pages/MemoryView';
 import { KnowledgeView } from './pages/KnowledgeView';
-import { EscalationsView } from './pages/EscalationsView';
 import { AnalyticsView } from './pages/AnalyticsView';
-import { SettingsView } from './pages/SettingsView';
+import { EvaluationLabView } from './pages/EvaluationLabView';
+import { AuditLogExplorerView } from './pages/AuditLogExplorerView';
+import { UserManagementView } from './pages/UserManagementView';
+import { AuthProvider } from './context/AuthContext';
 import { AgentModal } from './components/agents/AgentModal';
 import { Customer, AgentInfo, AnalyticsData, AIState } from './types';
 import { getCustomers, getAgents, getAnalytics, getEscalations } from './services/api';
 
-export function App() {
-  const [activeTab, setActiveTab] = useState<NavTab>('chat');
+export function AppContent() {
+  const [activeTab, setActiveTab] = useState<NavTab>('overview');
+  const [selectedCaseId, setSelectedCaseId] = useState<string | null>(null);
+  const [casesFilter, setCasesFilter] = useState<string | undefined>(undefined);
   const [aiState, setAiState] = useState<AIState>('IDLE');
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [currentCustomer, setCurrentCustomer] = useState<Customer | null>(null);
@@ -100,6 +107,61 @@ export function App() {
 
         {/* Main Floating Workspace */}
         <main className="flex-1 min-w-0">
+          {activeTab === 'overview' && (
+            <CommandCenterView
+              onNavigateToCases={(filter) => {
+                setCasesFilter(filter);
+                setSelectedCaseId(null);
+                setActiveTab('cases');
+              }}
+              onNavigateToCaseDetail={(cId) => {
+                setSelectedCaseId(cId);
+                setActiveTab('cases');
+              }}
+              onNavigateToAgents={() => setActiveTab('agents')}
+            />
+          )}
+
+          {activeTab === 'cases' && (
+            selectedCaseId ? (
+              <CaseDetailView
+                caseId={selectedCaseId}
+                onBack={() => setSelectedCaseId(null)}
+              />
+            ) : (
+              <CasesManagementView
+                onSelectCase={(cId) => setSelectedCaseId(cId)}
+                initialFilter={casesFilter}
+              />
+            )
+          )}
+
+          {activeTab === 'customers' && (
+            <CustomersView
+              onSelectCustomerToChat={(cust) => {
+                setCurrentCustomer(cust);
+                setActiveTab('chat');
+              }}
+              onCreateCaseForCustomer={(cId) => {
+                setActiveTab('cases');
+              }}
+            />
+          )}
+
+          {activeTab === 'agents' && <AgentOperationsView />}
+
+          {activeTab === 'automations' && <AutomationsView />}
+
+          {activeTab === 'knowledge' && <KnowledgeView />}
+
+          {activeTab === 'analytics' && <AnalyticsView analytics={analytics} />}
+
+          {activeTab === 'evaluations' && <EvaluationLabView />}
+
+          {activeTab === 'audit' && <AuditLogExplorerView />}
+
+          {activeTab === 'settings' && <UserManagementView />}
+
           {activeTab === 'chat' && (
             <CustomerChatView
               currentCustomer={currentCustomer}
@@ -111,32 +173,12 @@ export function App() {
             />
           )}
 
-          {activeTab === 'dashboard' && (
-            <DashboardView
-              analytics={analytics}
-              onNavigateToChat={() => setActiveTab('chat')}
-              onNavigateToEscalations={() => setActiveTab('escalations')}
-            />
-          )}
-
           {activeTab === 'workflow' && (
             <AgentWorkflowView
               agents={agents}
               onSelectAgent={handleSelectAgentById}
             />
           )}
-
-          {activeTab === 'tasks' && <TasksView />}
-
-          {activeTab === 'memory' && <MemoryView currentCustomer={currentCustomer} />}
-
-          {activeTab === 'knowledge' && <KnowledgeView />}
-
-          {activeTab === 'escalations' && <EscalationsView />}
-
-          {activeTab === 'analytics' && <AnalyticsView analytics={analytics} />}
-
-          {activeTab === 'settings' && <SettingsView />}
         </main>
       </div>
 
@@ -146,6 +188,14 @@ export function App() {
         onClose={() => setSelectedAgent(null)}
       />
     </div>
+  );
+}
+
+export function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   );
 }
 

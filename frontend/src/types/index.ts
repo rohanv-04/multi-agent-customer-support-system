@@ -38,20 +38,155 @@ export interface Customer {
   orders?: OrderSummary[];
 }
 
+export interface OrderItem {
+  item_id: string;
+  name: string;
+  qty: number;
+  price: number;
+}
+
 export interface OrderSummary {
   order_id: string;
   status: string;
   total_amount: number;
-  items?: any[];
+  currency?: string;
+  items?: OrderItem[];
   carrier?: string;
   tracking_number?: string;
+  order_date?: string;
+  expected_delivery?: string;
+  actual_delivery?: string;
   delay_reason?: string;
+}
+
+export interface CustomerPaymentSummary {
+  payment_id: string;
+  order_id: string;
+  amount: number;
+  currency: string;
+  status: string;
+  payment_method: string;
+  created_at: string;
+}
+
+export interface CustomerRefundSummary {
+  refund_id: string;
+  order_id: string;
+  refund_amount: number;
+  currency: string;
+  status: string;
+  reason: string;
+  refund_method: string;
+  processed_at: string;
+}
+
+export interface CustomerCaseSummary {
+  id: string;
+  channel: string;
+  subject: string;
+  priority: string;
+  status: string;
+  intent?: string;
+  sentiment: string;
+  created_at: string;
+  resolved_at?: string;
+}
+
+export interface CustomerComplaintSummary {
+  complaint_id: string;
+  source_type: string;
+  severity: string;
+  issue: string;
+  status: string;
+  created_at: string;
+}
+
+export interface CustomerResolutionSummary {
+  resolution_id: string;
+  case_id?: string;
+  order_id?: string;
+  resolution_type: string;
+  outcome_summary: string;
+  resolved_at: string;
+}
+
+export interface CustomerMemoryItem {
+  id: number;
+  memory_type: string;
+  key: string;
+  value: string;
+  updated_at: string;
+}
+
+export interface CustomerLoyalty {
+  tier: string;
+  is_vip: boolean;
+  lifetime_spend: number;
+  currency: string;
+  order_count: number;
+  tenure_days: number;
+  perks: string[];
+}
+
+export interface Customer360 {
+  profile: {
+    customer_id: string;
+    organization_id: string;
+    name: string;
+    email: string;
+    phone?: string;
+    account_status: string;
+    created_at: string;
+  };
+  account_status: string;
+  loyalty: CustomerLoyalty;
+  orders: OrderSummary[];
+  payments: CustomerPaymentSummary[];
+  refunds: CustomerRefundSummary[];
+  previous_cases: CustomerCaseSummary[];
+  cases: CustomerCaseSummary[];
+  previous_complaints: CustomerComplaintSummary[];
+  previous_resolutions: CustomerResolutionSummary[];
+  memories: CustomerMemoryItem[];
+  open_cases_count: number;
+  risk_assessment: {
+    risk_level: string;
+    churn_signals: string[];
+    total_refunded_amount?: number;
+    loyalty_score?: number;
+    recommended_treatment?: string;
+  };
+}
+
+export interface InvestigationFinding {
+  category: string;
+  observation: string;
+  impact: string;
+  confidence: number;
+}
+
+export interface InvestigationEvidence {
+  source: string;
+  fact: string;
+  verified: boolean;
+  timestamp?: string;
+}
+
+export interface InvestigationResult {
+  case_id: string;
+  findings: InvestigationFinding[];
+  evidence: InvestigationEvidence[];
+  data_sources: string[];
+  unresolved_questions: string[];
+  recommended_next_step: string;
+  investigation_status: string;
 }
 
 export interface EscalationTicket {
   ticket_id: string;
   customer_id: string;
   task_id?: string;
+  case_id?: string;
   summary: string;
   intent?: string;
   reason: string;
@@ -96,12 +231,15 @@ export interface ChatMessage {
   content: string;
   timestamp: string;
   task_id?: string;
+  case_id?: string;
   confidence?: number;
   status?: string;
   execution_trace?: TraceEvent[];
   plan?: string[];
   completed_steps?: string[];
   tool_calls?: any[];
+  investigation_result?: InvestigationResult;
+  customer_360?: Customer360;
   requires_escalation?: boolean;
   escalation_dossier?: any;
 }

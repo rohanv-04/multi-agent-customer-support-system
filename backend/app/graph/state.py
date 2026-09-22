@@ -6,9 +6,19 @@ class AgenticSupportState(TypedDict):
     conversation_id: str
     user_goal: str
     messages: List[Dict[str, Any]]
+    case_id: Optional[str]  # SupportOS AI Central Support Case ID
     
-    # Intent & extraction
+    # Customer 360 & Intake
+    customer_360: Optional[Dict[str, Any]]
     intent: Dict[str, Any]
+    
+    # Investigation
+    investigation_result: Optional[Dict[str, Any]]
+    
+    # Policy Intelligence, Decision & Risk (Sprint 3)
+    policy_evaluation: Optional[Dict[str, Any]]
+    decision_result: Optional[Dict[str, Any]]
+    risk_evaluation: Optional[Dict[str, Any]]
     
     # Planning & progression
     plan: List[str]

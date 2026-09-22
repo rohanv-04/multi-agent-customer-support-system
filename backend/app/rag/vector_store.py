@@ -170,4 +170,52 @@ class PolicyVectorStore:
 
         return results
 
+    def search(self, query: str, top_k: int = 3) -> List[Dict[str, Any]]:
+        """Semantic search returning standardized chunk metadata for policy interpretation."""
+        if not self.is_indexed:
+            self.index_documents()
+
+        query_tokens = self._tokenize(query)
+        if not query_tokens:
+            return []
+
+        query_vec = self._compute_vector(query_tokens)
+
+        scores: List[Tuple[float, Dict[str, Any]]] = []
+        for i, chunk_vec in enumerate(self.chunk_vectors):
+            dot_product = 0.0
+            for token, q_weight in query_vec.items():
+                if token in chunk_vec:
+                    dot_product += q_weight * chunk_vec[token]
+
+            # Boost exact keyword matches in header or title
+            chunk_header = self.chunks[i]["header"].lower()
+            chunk_title = self.chunks[i]["title"].lower()
+            for token in query_tokens:
+                if token in chunk_header or token in chunk_title:
+                    dot_product += 0.25
+
+            if dot_product > 0.05:
+                scores.append((dot_product, self.chunks[i]))
+
+        scores.sort(key=lambda x: x[0], reverse=True)
+
+        results = []
+        for score, chunk in scores[:top_k]:
+            normalized_score = min(0.98, max(0.50, round(score * 1.5, 2)))
+            results.append({
+                "doc_id": chunk["source"],
+                "source": chunk["source"],
+                "category": chunk["category"],
+                "title": chunk["title"],
+                "section": chunk["header"],
+                "header": chunk["header"],
+                "text": chunk["content"],
+                "content": chunk["content"],
+                "score": normalized_score,
+                "confidence": normalized_score
+            })
+
+        return results
+
 policy_store = PolicyVectorStore()

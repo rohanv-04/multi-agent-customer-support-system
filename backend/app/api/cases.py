@@ -1,0 +1,150 @@
+from typing import List, Optional
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy.orm import Session
+
+from ..database.database import get_db
+from ..database.models import SupportCase, Customer, get_utc_now
+from ..schemas.case import (
+    CaseCreate,
+    CaseUpdate,
+    CaseResponse,
+    CaseDetailResponse,
+    CaseMessageCreate,
+    CaseMessageResponse,
+    CaseEventResponse,
+    TimelineItemResponse
+)
+from ..services.case_service import CaseService, InvalidStateTransitionError
+
+router = APIRouter(prefix="/api/cases", tags=["cases"])
+
+
+@router.post("", response_model=CaseResponse, status_code=201)
+def create_case(req: CaseCreate, db: Session = Depends(get_db)):
+    """Create a new Support Case and record inception lifecycle events."""
+    try:
+        case = CaseService.create_case(db, req)
+        return case
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get("", response_model=List[CaseResponse])
+def list_cases(
+    status: Optional[str] = Query(None, description="Filter by status (NEW, TRIAGING, INVESTIGATING, etc.)"),
+    priority: Optional[str] = Query(None, description="Filter by priority (low, medium, high, urgent)"),
+    customer_id: Optional[str] = Query(None, description="Filter by customer ID"),
+    channel: Optional[str] = Query(None, description="Filter by channel (web_chat, email, api, portal)"),
+    search: Optional[str] = Query(None, description="Keyword search in subject, description, or intent"),
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    db: Session = Depends(get_db)
+):
+    """List support cases with multi-attribute filtering and pagination."""
+    return CaseService.list_cases(
+        db=db,
+        status=status,
+        priority=priority,
+        customer_id=customer_id,
+        channel=channel,
+        search=search,
+        limit=limit,
+        offset=offset
+    )
+
+
+@router.get("/{case_id}", response_model=CaseDetailResponse)
+def get_case(case_id: str, db: Session = Depends(get_db)):
+    """Retrieve detailed support case profile including Customer 360 overview and SLA metrics."""
+    case = CaseService.get_case(db, case_id)
+    if not case:
+        raise HTTPException(status_code=404, detail=f"Support case '{case_id}' not found.")
+
+    customer = db.query(Customer).filter(Customer.customer_id == case.customer_id).first()
+    now = get_utc_now()
+
+    is_breached = False
+    minutes_remaining = None
+    if case.sla_deadline:
+        diff = (case.sla_deadline - now).total_seconds() / 60.0
+        minutes_remaining = round(diff, 1)
+        if diff < 0 and case.status not in ["RESOLVED", "CLOSED"]:
+            is_breached = True
+
+    return CaseDetailResponse(
+        id=case.id,
+        organization_id=case.organization_id,
+        customer_id=case.customer_id,
+        conversation_id=case.conversation_id,
+        channel=case.channel,
+        subject=case.subject,
+        description=case.description,
+        intent=case.intent,
+        sentiment=case.sentiment,
+        priority=case.priority,
+        status=case.status,
+        sla_deadline=case.sla_deadline,
+        created_at=case.created_at,
+        updated_at=case.updated_at,
+        resolved_at=case.resolved_at,
+        customer_name=customer.name if customer else None,
+        customer_email=customer.email if customer else None,
+        customer_tier=customer.tier if customer else "Standard",
+        message_count=len(case.messages),
+        event_count=len(case.events),
+        agent_run_count=len(case.agent_runs),
+        action_count=len(case.actions),
+        is_sla_breached=is_breached,
+        sla_minutes_remaining=minutes_remaining
+    )
+
+
+@router.patch("/{case_id}", response_model=CaseResponse)
+def update_case(case_id: str, req: CaseUpdate, db: Session = Depends(get_db)):
+    """Update case attributes or trigger lifecycle transitions."""
+    try:
+        case = CaseService.update_case(db, case_id, req)
+        return case
+    except InvalidStateTransitionError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/{case_id}/messages", response_model=List[CaseMessageResponse])
+def get_case_messages(case_id: str, db: Session = Depends(get_db)):
+    """Retrieve all inbound and outbound messages associated with the case."""
+    case = CaseService.get_case(db, case_id)
+    if not case:
+        raise HTTPException(status_code=404, detail=f"Support case '{case_id}' not found.")
+    return case.messages
+
+
+@router.post("/{case_id}/messages", response_model=CaseMessageResponse, status_code=201)
+def add_case_message(case_id: str, req: CaseMessageCreate, db: Session = Depends(get_db)):
+    """Add a new inbound or outbound message to a support case."""
+    try:
+        msg = CaseService.add_case_message(db, case_id, req)
+        return msg
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.get("/{case_id}/events", response_model=List[CaseEventResponse])
+def get_case_events(case_id: str, db: Session = Depends(get_db)):
+    """Retrieve the operational and state transition event stream for a case."""
+    case = CaseService.get_case(db, case_id)
+    if not case:
+        raise HTTPException(status_code=404, detail=f"Support case '{case_id}' not found.")
+    return case.events
+
+
+@router.get("/{case_id}/timeline", response_model=List[TimelineItemResponse])
+def get_case_timeline(case_id: str, db: Session = Depends(get_db)):
+    """Retrieve a unified chronological timeline (messages, events, agent runs, actions, escalations)."""
+    case = CaseService.get_case(db, case_id)
+    if not case:
+        raise HTTPException(status_code=404, detail=f"Support case '{case_id}' not found.")
+    return CaseService.get_case_timeline(db, case_id)

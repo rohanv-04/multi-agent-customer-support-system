@@ -29,7 +29,7 @@ def test_scenario_3_autonomous_refund():
     order = db.query(Order).filter(Order.order_id == "ORD10002").first()
     if order:
         order.status = "Delayed"
-    db.query(Refund).filter(Refund.order_id == "ORD10002").delete()
+    db.query(Refund).delete()
     db.commit()
     db.close()
 

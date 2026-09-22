@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Send, Sparkles, Loader2, RefreshCw } from 'lucide-react';
-import { ChatMessage, Customer, TraceEvent, AIState, AgentInfo } from '../types';
+import { ChatMessage, Customer, TraceEvent, AIState, AgentInfo, InvestigationResult } from '../types';
 import { ChatMessageBubble } from '../components/chat/ChatMessageBubble';
 import { AIExecutionPanel } from '../components/chat/AIExecutionPanel';
 import { SpatialAgentGraph } from '../components/chat/SpatialAgentGraph';
@@ -30,7 +30,7 @@ export const CustomerChatView: React.FC<Props> = ({
       id: 'welcome-1',
       role: 'assistant',
       content:
-        "Hello! I am AgentSupport AI, your autonomous customer support specialist for NovaCart.\n\nI can track packages, verify refund eligibility, retrieve company policies, and process actions directly. How can I help you today?",
+        "Hello! I am AgentSupport AI, your autonomous customer support specialist for NovaCart.\n\nI can track packages, verify refund eligibility, retrieve company policies, investigate multi-source records, and process actions directly. How can I help you today?",
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       confidence: 1.0,
       status: 'completed'
@@ -46,6 +46,8 @@ export const CustomerChatView: React.FC<Props> = ({
   const [replanCount, setReplanCount] = useState<number>(0);
   const [activeAgentName, setActiveAgentName] = useState<string>('Supervisor Agent');
   const [liveTraceEvents, setLiveTraceEvents] = useState<TraceEvent[]>([]);
+  const [activeCaseId, setActiveCaseId] = useState<string | null>(null);
+  const [investigationResult, setInvestigationResult] = useState<InvestigationResult | null>(null);
 
   const chatEndRef = useRef<HTMLDivElement>(null);
 
@@ -78,6 +80,7 @@ export const CustomerChatView: React.FC<Props> = ({
     setLiveTraceEvents([]);
     setReplanCount(0);
     setActiveAgentName('Supervisor Agent');
+    setInvestigationResult(null);
 
     try {
       // Use streaming endpoint
@@ -85,6 +88,7 @@ export const CustomerChatView: React.FC<Props> = ({
         textToSend,
         custId,
         undefined,
+        activeCaseId || undefined,
         (trace: TraceEvent) => {
           setLiveTraceEvents((prev) => [...prev, trace]);
           setActiveAgentName(trace.agent);
@@ -113,6 +117,8 @@ export const CustomerChatView: React.FC<Props> = ({
           setCompletedSteps(completion.completed_steps || completion.plan || []);
           setConfidence(completion.confidence || 0.95);
           setAiState(completion.requires_escalation ? 'ESCALATED' : 'COMPLETED');
+          if (completion.case_id) setActiveCaseId(completion.case_id);
+          if (completion.investigation_result) setInvestigationResult(completion.investigation_result);
 
           // Add assistant message
           const assistantMsg: ChatMessage = {
@@ -121,11 +127,14 @@ export const CustomerChatView: React.FC<Props> = ({
             content: completion.response,
             timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
             task_id: completion.task_id,
+            case_id: completion.case_id,
             confidence: completion.confidence,
             status: completion.status,
             execution_trace: liveTraceEvents,
             plan: completion.plan,
             completed_steps: completion.completed_steps,
+            investigation_result: completion.investigation_result,
+            customer_360: completion.customer_360,
             requires_escalation: completion.requires_escalation,
             escalation_dossier: completion.escalation_dossier
           };
@@ -134,12 +143,14 @@ export const CustomerChatView: React.FC<Props> = ({
         },
         async () => {
           // If streaming connection fails, fallback seamlessly to JSON endpoint
-          const res = await sendMessage(textToSend, custId);
+          const res = await sendMessage(textToSend, custId, undefined, activeCaseId || undefined);
           setActivePlan(res.plan || []);
           setCompletedSteps(res.completed_steps || []);
           setConfidence(res.confidence || 0.95);
           setLiveTraceEvents(res.execution_trace || []);
           setAiState(res.requires_escalation ? 'ESCALATED' : 'COMPLETED');
+          if (res.case_id) setActiveCaseId(res.case_id);
+          if (res.investigation_result) setInvestigationResult(res.investigation_result);
 
           const assistantMsg: ChatMessage = {
             id: `msg-${Date.now()}-ai`,
@@ -147,11 +158,14 @@ export const CustomerChatView: React.FC<Props> = ({
             content: res.response,
             timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
             task_id: res.task_id,
+            case_id: res.case_id,
             confidence: res.confidence,
             status: res.status,
             execution_trace: res.execution_trace,
             plan: res.plan,
             completed_steps: res.completed_steps,
+            investigation_result: res.investigation_result,
+            customer_360: res.customer_360,
             requires_escalation: res.requires_escalation,
             escalation_dossier: res.escalation_dossier
           };
@@ -223,7 +237,7 @@ export const CustomerChatView: React.FC<Props> = ({
 
       {/* CENTER COLUMN: AI Execution Panel & Spatial Graph (4 cols) */}
       <div className="xl:col-span-4 flex flex-col gap-4 overflow-y-auto h-[calc(100vh-8.5rem)] pr-1">
-        {/* Active AI Task Panel */}
+        {/* Active AI Task Panel with Investigation Findings */}
         <AIExecutionPanel
           goal={activeGoal}
           plan={activePlan}
@@ -233,6 +247,7 @@ export const CustomerChatView: React.FC<Props> = ({
           replanCount={replanCount}
           status={aiState}
           traceEvents={liveTraceEvents}
+          investigationResult={investigationResult}
         />
 
         {/* Spatial Multi-Agent Graph */}
@@ -243,9 +258,15 @@ export const CustomerChatView: React.FC<Props> = ({
         />
       </div>
 
-      {/* RIGHT COLUMN: Customer Context & Real-Time Memory (3 cols) */}
+      {/* RIGHT COLUMN: Customer 360 & Case Context Card (3 cols) */}
       <div className="xl:col-span-3 flex flex-col gap-4 overflow-y-auto h-[calc(100vh-8.5rem)]">
-        <CustomerContextCard customer={currentCustomer} />
+        <CustomerContextCard
+          customer={currentCustomer}
+          activeCaseId={activeCaseId}
+          caseStatus={aiState === 'ESCALATED' ? 'ESCALATED' : aiState === 'COMPLETED' ? 'RESOLVED' : 'INVESTIGATING'}
+          casePriority={investigationResult?.findings.some(f => f.impact === 'risk' || f.impact === 'blocker') ? 'high' : 'medium'}
+          sentiment="frustrated"
+        />
       </div>
     </div>
   );

@@ -1,14 +1,23 @@
 import os
 import json
 import datetime
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 from .models import (
     Base,
+    get_utc_now,
+    Organization,
     Customer,
     Order,
     Conversation,
     Message,
+    SupportCase,
+    CaseMessage,
+    CaseEvent,
+    AgentRun,
+    AgentAction,
+    EscalationTicket,
+    AuditLog,
     CustomerMemory,
     KnowledgeDocument
 )
@@ -29,23 +38,80 @@ def get_db():
     finally:
         db.close()
 
+def check_and_migrate_db():
+    """Safely apply incremental SQLite schema updates to existing databases without data loss."""
+    try:
+        with engine.connect() as conn:
+            # Check customers.organization_id
+            cols_cust = [row[1] for row in conn.execute(text("PRAGMA table_info(customers)")).fetchall()]
+            if "organization_id" not in cols_cust:
+                conn.execute(text("ALTER TABLE customers ADD COLUMN organization_id VARCHAR(50) DEFAULT 'ORG-NOVACART'"))
+                conn.commit()
+
+            # Check agent_actions columns
+            cols_actions = [row[1] for row in conn.execute(text("PRAGMA table_info(agent_actions)")).fetchall()]
+            if "case_id" not in cols_actions:
+                conn.execute(text("ALTER TABLE agent_actions ADD COLUMN case_id VARCHAR(50)"))
+                conn.commit()
+            if "requested_by" not in cols_actions:
+                conn.execute(text("ALTER TABLE agent_actions ADD COLUMN requested_by VARCHAR(100)"))
+                conn.commit()
+            if "status" not in cols_actions:
+                conn.execute(text("ALTER TABLE agent_actions ADD COLUMN status VARCHAR(50) DEFAULT 'completed'"))
+                conn.commit()
+            if "input_metadata" not in cols_actions:
+                conn.execute(text("ALTER TABLE agent_actions ADD COLUMN input_metadata TEXT"))
+                conn.commit()
+            if "result_metadata" not in cols_actions:
+                conn.execute(text("ALTER TABLE agent_actions ADD COLUMN result_metadata TEXT"))
+                conn.commit()
+
+            # Check escalations.case_id
+            cols_esc = [row[1] for row in conn.execute(text("PRAGMA table_info(escalations)")).fetchall()]
+            if "case_id" not in cols_esc:
+                conn.execute(text("ALTER TABLE escalations ADD COLUMN case_id VARCHAR(50)"))
+                conn.commit()
+    except Exception as e:
+        print(f"[Migration Notice]: {e}")
+
 def init_db():
     Base.metadata.create_all(bind=engine)
+    check_and_migrate_db()
     seed_demo_data()
 
 def seed_demo_data():
     db = SessionLocal()
     try:
-        # Check if already seeded
+        now = get_utc_now()
+
+        # Ensure default organization exists
+        org = db.query(Organization).filter(Organization.id == "ORG-NOVACART").first()
+        if not org:
+            org = Organization(
+                id="ORG-NOVACART",
+                name="NovaCart Enterprise",
+                slug="novacart",
+                plan_tier="Enterprise",
+                created_at=now
+            )
+            db.add(org)
+            db.commit()
+
+        # Update existing customers with default organization_id if null
+        db.query(Customer).filter(Customer.organization_id.is_(None)).update(
+            {"organization_id": "ORG-NOVACART"}, synchronize_session=False
+        )
+        db.commit()
+
+        # Check if customer demo data is already seeded
         if db.query(Customer).count() > 0:
             return
-
-        now = datetime.datetime.utcnow()
 
         # Seed Customers
         customers = [
             Customer(
                 customer_id="CUST1001",
+                organization_id="ORG-NOVACART",
                 name="Alex Mercer",
                 email="alex.mercer@example.com",
                 phone="+1-555-0101",
@@ -54,6 +120,7 @@ def seed_demo_data():
             ),
             Customer(
                 customer_id="CUST1002",
+                organization_id="ORG-NOVACART",
                 name="Elena Rostova",
                 email="elena.rostova@example.com",
                 phone="+1-555-0102",
@@ -62,6 +129,7 @@ def seed_demo_data():
             ),
             Customer(
                 customer_id="CUST1003",
+                organization_id="ORG-NOVACART",
                 name="Marcus Vance",
                 email="marcus.vance@example.com",
                 phone="+1-555-0103",
@@ -70,6 +138,7 @@ def seed_demo_data():
             ),
             Customer(
                 customer_id="CUST1004",
+                organization_id="ORG-NOVACART",
                 name="Sarah Jenkins",
                 email="sarah.j@example.com",
                 phone="+1-555-0104",
@@ -78,6 +147,7 @@ def seed_demo_data():
             ),
             Customer(
                 customer_id="CUST1005",
+                organization_id="ORG-NOVACART",
                 name="David Chen",
                 email="david.chen@example.com",
                 phone="+1-555-0105",

@@ -17,6 +17,10 @@ from .api.knowledge import router as knowledge_router
 from .api.escalations import router as escalations_router
 from .api.analytics import router as analytics_router
 from .api.customers import router as customers_router
+from .api.cases import router as cases_router
+from .api.omnichannel import router as omnichannel_router
+from .api.proactive import router as proactive_router
+from .api.sla import router as sla_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -31,8 +35,8 @@ async def lifespan(app: FastAPI):
     print("[Shutdown] Cleaning up...")
 
 app = FastAPI(
-    title="AgentSupport AI - Backend Engine",
-    description="Autonomous Multi-Agent Customer Support System with LangGraph, RAG, and Real Database Tools",
+    title="SupportOS AI - Autonomous Customer Support Operations Platform",
+    description="Autonomous Multi-Agent Customer Support System with SupportCase Engine, LangGraph, RAG, and Real Database Tools",
     version="1.0.0",
     lifespan=lifespan
 )
@@ -47,6 +51,7 @@ app.add_middleware(
 )
 
 # Include API routers
+app.include_router(cases_router)
 app.include_router(chat_router)
 app.include_router(tasks_router)
 app.include_router(agents_router)
@@ -56,6 +61,9 @@ app.include_router(knowledge_router)
 app.include_router(escalations_router)
 app.include_router(analytics_router)
 app.include_router(customers_router)
+app.include_router(omnichannel_router)
+app.include_router(proactive_router)
+app.include_router(sla_router)
 
 @app.get("/api/health")
 def health_check():

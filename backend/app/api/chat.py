@@ -8,7 +8,9 @@ from pydantic import BaseModel
 from ..graph.workflow import support_graph
 from ..graph.state import AgenticSupportState
 from ..database.database import SessionLocal
-from ..database.models import Conversation, Message
+from ..database.models import Conversation, Message, SupportCase
+from ..services.case_service import CaseService
+from ..schemas.case import CaseCreate, CaseMessageCreate
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
 
@@ -16,12 +18,14 @@ class ChatRequest(BaseModel):
     message: str
     customer_id: Optional[str] = "CUST1002"
     conversation_id: Optional[str] = None
+    case_id: Optional[str] = None
     stream: Optional[bool] = False
 
 class ChatResponse(BaseModel):
     task_id: str
     conversation_id: str
     customer_id: str
+    case_id: Optional[str] = None
     response: str
     intent: Dict[str, Any]
     plan: list
@@ -32,14 +36,20 @@ class ChatResponse(BaseModel):
     replan_count: int
     tool_calls: list
     execution_trace: list
+    customer_360: Optional[Dict[str, Any]] = None
+    investigation_result: Optional[Dict[str, Any]] = None
+    policy_evaluation: Optional[Dict[str, Any]] = None
+    decision_result: Optional[Dict[str, Any]] = None
+    risk_evaluation: Optional[Dict[str, Any]] = None
     escalation_dossier: Optional[Dict[str, Any]] = None
 
 @router.post("", response_model=ChatResponse)
 async def chat_endpoint(req: ChatRequest):
     conv_id = req.conversation_id or f"conv-{uuid.uuid4().hex[:8]}"
     task_id = f"task-{uuid.uuid4().hex[:8]}"
+    case_id = req.case_id
 
-    # Save user message to database
+    # Initialize/Link SupportCase and save user message
     db = SessionLocal()
     try:
         conv = db.query(Conversation).filter(Conversation.conversation_id == conv_id).first()
@@ -59,6 +69,51 @@ async def chat_endpoint(req: ChatRequest):
         )
         db.add(user_msg)
         db.commit()
+
+        if not case_id:
+            existing_case = db.query(SupportCase).filter(
+                SupportCase.conversation_id == conv_id,
+                SupportCase.status.notin_(["RESOLVED", "CLOSED"])
+            ).first()
+            if existing_case:
+                case_id = existing_case.id
+                CaseService.add_case_message(
+                    db=db,
+                    case_id=case_id,
+                    msg_data=CaseMessageCreate(
+                        body=req.message,
+                        direction="inbound",
+                        channel="web_chat",
+                        sender_type="customer",
+                        sender_id=req.customer_id or "CUST1002"
+                    )
+                )
+            else:
+                new_case = CaseService.create_case(
+                    db=db,
+                    data=CaseCreate(
+                        customer_id=req.customer_id or "CUST1002",
+                        subject=req.message[:80],
+                        description=req.message,
+                        channel="web_chat",
+                        priority="medium",
+                        conversation_id=conv_id,
+                        initial_message=req.message
+                    )
+                )
+                case_id = new_case.id
+        else:
+            CaseService.add_case_message(
+                db=db,
+                case_id=case_id,
+                msg_data=CaseMessageCreate(
+                    body=req.message,
+                    direction="inbound",
+                    channel="web_chat",
+                    sender_type="customer",
+                    sender_id=req.customer_id or "CUST1002"
+                )
+            )
     finally:
         db.close()
 
@@ -66,9 +121,15 @@ async def chat_endpoint(req: ChatRequest):
         "task_id": task_id,
         "customer_id": req.customer_id or "CUST1002",
         "conversation_id": conv_id,
+        "case_id": case_id,
         "user_goal": req.message,
         "messages": [{"role": "user", "content": req.message}],
+        "customer_360": None,
         "intent": {},
+        "investigation_result": None,
+        "policy_evaluation": None,
+        "decision_result": None,
+        "risk_evaluation": None,
         "plan": [],
         "completed_steps": [],
         "pending_steps": [],
@@ -99,6 +160,7 @@ async def chat_endpoint(req: ChatRequest):
             content=final_state["final_response"],
             metadata_json=json.dumps({
                 "task_id": task_id,
+                "case_id": final_state.get("case_id", case_id),
                 "confidence": final_state["confidence"],
                 "status": final_state["status"]
             })
@@ -112,6 +174,7 @@ async def chat_endpoint(req: ChatRequest):
         task_id=final_state["task_id"],
         conversation_id=conv_id,
         customer_id=final_state["customer_id"],
+        case_id=final_state.get("case_id", case_id),
         response=final_state["final_response"],
         intent=final_state.get("intent", {}),
         plan=final_state.get("plan", []),
@@ -122,6 +185,11 @@ async def chat_endpoint(req: ChatRequest):
         replan_count=final_state.get("replan_count", 0),
         tool_calls=final_state.get("tool_calls", []),
         execution_trace=final_state.get("execution_trace", []),
+        customer_360=final_state.get("customer_360"),
+        investigation_result=final_state.get("investigation_result"),
+        policy_evaluation=final_state.get("policy_evaluation"),
+        decision_result=final_state.get("decision_result"),
+        risk_evaluation=final_state.get("risk_evaluation"),
         escalation_dossier=final_state.get("escalation_dossier")
     )
 
@@ -131,14 +199,89 @@ async def chat_stream_endpoint(req: ChatRequest):
     async def event_generator():
         conv_id = req.conversation_id or f"conv-{uuid.uuid4().hex[:8]}"
         task_id = f"task-{uuid.uuid4().hex[:8]}"
+        case_id = req.case_id
+
+        # Setup conversation & case
+        db = SessionLocal()
+        try:
+            conv = db.query(Conversation).filter(Conversation.conversation_id == conv_id).first()
+            if not conv:
+                conv = Conversation(
+                    conversation_id=conv_id,
+                    customer_id=req.customer_id or "CUST1002",
+                    title=req.message[:50]
+                )
+                db.add(conv)
+                db.commit()
+
+            user_msg = Message(
+                conversation_id=conv_id,
+                role="user",
+                content=req.message
+            )
+            db.add(user_msg)
+            db.commit()
+
+            if not case_id:
+                existing_case = db.query(SupportCase).filter(
+                    SupportCase.conversation_id == conv_id,
+                    SupportCase.status.notin_(["RESOLVED", "CLOSED"])
+                ).first()
+                if existing_case:
+                    case_id = existing_case.id
+                    CaseService.add_case_message(
+                        db=db,
+                        case_id=case_id,
+                        msg_data=CaseMessageCreate(
+                            body=req.message,
+                            direction="inbound",
+                            channel="web_chat",
+                            sender_type="customer",
+                            sender_id=req.customer_id or "CUST1002"
+                        )
+                    )
+                else:
+                    new_case = CaseService.create_case(
+                        db=db,
+                        data=CaseCreate(
+                            customer_id=req.customer_id or "CUST1002",
+                            subject=req.message[:80],
+                            description=req.message,
+                            channel="web_chat",
+                            priority="medium",
+                            conversation_id=conv_id,
+                            initial_message=req.message
+                        )
+                    )
+                    case_id = new_case.id
+            else:
+                CaseService.add_case_message(
+                    db=db,
+                    case_id=case_id,
+                    msg_data=CaseMessageCreate(
+                        body=req.message,
+                        direction="inbound",
+                        channel="web_chat",
+                        sender_type="customer",
+                        sender_id=req.customer_id or "CUST1002"
+                    )
+                )
+        finally:
+            db.close()
 
         initial_state: AgenticSupportState = {
             "task_id": task_id,
             "customer_id": req.customer_id or "CUST1002",
             "conversation_id": conv_id,
+            "case_id": case_id,
             "user_goal": req.message,
             "messages": [{"role": "user", "content": req.message}],
+            "customer_360": None,
             "intent": {},
+            "investigation_result": None,
+            "policy_evaluation": None,
+            "decision_result": None,
+            "risk_evaluation": None,
             "plan": [],
             "completed_steps": [],
             "pending_steps": [],
@@ -165,16 +308,22 @@ async def chat_stream_endpoint(req: ChatRequest):
             yield f"data: {json.dumps({'type': 'trace_event', 'trace': trace})}\n\n"
             await asyncio.sleep(0.08)  # Realistic smooth spatial visual pacing
 
-        # Emit completion payload
+        # Emit completion payload with case_id & policy/decision/risk outputs
         completion_data = {
             "type": "task_completed",
             "task_id": final_state["task_id"],
             "conversation_id": conv_id,
+            "case_id": final_state.get("case_id", case_id),
             "response": final_state["final_response"],
             "confidence": final_state["confidence"],
             "status": final_state["status"],
             "plan": final_state["plan"],
             "completed_steps": final_state["completed_steps"],
+            "customer_360": final_state.get("customer_360"),
+            "investigation_result": final_state.get("investigation_result"),
+            "policy_evaluation": final_state.get("policy_evaluation"),
+            "decision_result": final_state.get("decision_result"),
+            "risk_evaluation": final_state.get("risk_evaluation"),
             "requires_escalation": final_state["requires_escalation"],
             "escalation_dossier": final_state.get("escalation_dossier")
         }

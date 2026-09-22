@@ -1,6 +1,8 @@
+import { Customer360, CustomerCaseSummary, OrderSummary } from '../types';
+
 const API_BASE_URL = 'http://localhost:8000';
 
-export async function sendMessage(message: string, customerId: string = 'CUST1002', conversationId?: string) {
+export async function sendMessage(message: string, customerId: string = 'CUST1002', conversationId?: string, caseId?: string) {
   const res = await fetch(`${API_BASE_URL}/api/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -8,6 +10,7 @@ export async function sendMessage(message: string, customerId: string = 'CUST100
       message,
       customer_id: customerId,
       conversation_id: conversationId,
+      case_id: caseId,
       stream: false
     })
   });
@@ -21,6 +24,7 @@ export function streamChatMessage(
   message: string,
   customerId: string = 'CUST1002',
   conversationId?: string,
+  caseId?: string,
   onTraceEvent?: (trace: any) => void,
   onComplete?: (completion: any) => void,
   onError?: (err: any) => void
@@ -31,7 +35,8 @@ export function streamChatMessage(
     body: JSON.stringify({
       message,
       customer_id: customerId,
-      conversation_id: conversationId
+      conversation_id: conversationId,
+      case_id: caseId
     })
   }).then(async (response) => {
     if (!response.body) throw new Error('Readable stream not supported');
@@ -65,6 +70,30 @@ export function streamChatMessage(
   }).catch((err) => {
     if (onError) onError(err);
   });
+}
+
+export async function getCustomer360(customerId: string): Promise<Customer360> {
+  const res = await fetch(`${API_BASE_URL}/api/customers/${customerId}/360`);
+  if (!res.ok) throw new Error(`Failed to fetch Customer 360: ${res.statusText}`);
+  return res.json();
+}
+
+export async function getCustomerCases(customerId: string): Promise<CustomerCaseSummary[]> {
+  const res = await fetch(`${API_BASE_URL}/api/customers/${customerId}/cases`);
+  if (!res.ok) throw new Error(`Failed to fetch Customer Cases: ${res.statusText}`);
+  return res.json();
+}
+
+export async function getCustomerOrders(customerId: string): Promise<OrderSummary[]> {
+  const res = await fetch(`${API_BASE_URL}/api/customers/${customerId}/orders`);
+  if (!res.ok) throw new Error(`Failed to fetch Customer Orders: ${res.statusText}`);
+  return res.json();
+}
+
+export async function getCustomerActivity(customerId: string): Promise<any[]> {
+  const res = await fetch(`${API_BASE_URL}/api/customers/${customerId}/activity`);
+  if (!res.ok) throw new Error(`Failed to fetch Customer Activity: ${res.statusText}`);
+  return res.json();
 }
 
 export async function getTasks(customerId?: string) {

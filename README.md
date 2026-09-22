@@ -1,11 +1,16 @@
-# AgentSupport AI — Autonomous Multi-Agent Customer Support System
+# SupportOS AI — Autonomous Customer Support Operations Platform
 
-A production-grade, autonomous multi-agent customer support platform designed for **NovaCart** (e-commerce enterprise). Built with a true cognitive state loop: **Understand → Plan → Select Agents/Tools → Execute → Observe → Retrieve Knowledge → Update Memory → Validate → Replan / Escalate**.
+SupportOS AI is an enterprise-grade autonomous customer support operations platform designed for **NovaCart**. Powered by a case-centric architecture where **Support Case** is the central operational unit, seamlessly integrating multi-channel ingestion, Customer 360 context, dynamic LangGraph multi-agent cognitive loops, controlled business action gateways, and immutable audit ledgers.
+
+> 📘 **Full Architecture & API Guide**: See [docs/case_engine.md](file:///c:/Users/kavin/OneDrive/Desktop/Multi-Agent%20Customer%20Support%20System/multi-agent-customer-support-system/docs/case_engine.md)
 
 ---
 
 ## Key Highlights
 
+- **Support Case-Centric Paradigm**: Support requests from web chat, email, or APIs are normalized into first-class `SupportCase` entities with strict lifecycle state machines (`NEW` → `TRIAGING` → `INVESTIGATING` → `DECISION_PENDING` → `ACTION_PENDING` → `VERIFYING` → `RESOLVED` / `ESCALATED`).
+- **Dynamic SLA Management**: Real-time SLA target tracking (P1-P4 countdowns) with automatic breach detection and priority routing.
+- **Unified Chronological Activity Feeds**: Unified case timeline aggregating messages, state transitions, agent execution runs, tool actions, and human escalations.
 - **LangGraph Multi-Agent Orchestration**: Real dynamic state transitions between 7 specialist nodes: `Supervisor`, `Intent & Goal`, `Planning`, `Knowledge Retrieval (RAG)`, `Resolution (Tools)`, `Critic / Validator`, and `Human Escalation`.
 - **Controlled Real Database Tools**: Safe transactional execution of live order tracking diagnostics, eligibility evaluation, and financial refunds written directly to SQLite (`novacart.db`).
 - **Policy RAG Grounding**: Semantic retrieval engine over corporate policy documents (Refund, Return, Shipping, Cancellation, Warranty, Escalation) with citations and confidence metrics.

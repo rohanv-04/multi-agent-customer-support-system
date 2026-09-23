@@ -1,13 +1,23 @@
-from typing import Dict, Any
+from typing import Dict, Any, Optional, List
 from .intake_agent import run_intake_agent
 from ..schemas.intake import IntakeExtractionResult
 
-def run_intent_agent(user_goal: str, customer_id: str = "CUST1002") -> Dict[str, Any]:
+def run_intent_agent(
+    user_goal: str,
+    customer_id: str = "CUST1002",
+    conversation_history: Optional[List[Dict[str, Any]]] = None,
+    case_context: Optional[Dict[str, Any]] = None
+) -> Dict[str, Any]:
     """Agent 1 — Intent & Goal Extraction (Evolved with structured Intake Extraction).
 
     Returns backward-compatible dictionary while enforcing typed extraction underneath.
     """
-    intake = run_intake_agent(user_goal=user_goal, customer_id=customer_id)
+    intake = run_intake_agent(
+        user_goal=user_goal,
+        customer_id=customer_id,
+        conversation_history=conversation_history,
+        case_context=case_context
+    )
 
     required_actions = []
     if intake.intent == "human_escalation":

@@ -114,6 +114,12 @@ async def chat_endpoint(req: ChatRequest):
                     sender_id=req.customer_id or "CUST1002"
                 )
             )
+
+        # Fetch full conversation history for multi-turn memory
+        db_msgs = db.query(Message).filter(Message.conversation_id == conv_id).order_by(Message.id.asc()).all()
+        messages_history = [{"role": m.role, "content": m.content} for m in db_msgs]
+        if not messages_history:
+            messages_history = [{"role": "user", "content": req.message}]
     finally:
         db.close()
 
@@ -123,7 +129,7 @@ async def chat_endpoint(req: ChatRequest):
         "conversation_id": conv_id,
         "case_id": case_id,
         "user_goal": req.message,
-        "messages": [{"role": "user", "content": req.message}],
+        "messages": messages_history,
         "customer_360": None,
         "intent": {},
         "investigation_result": None,
@@ -266,6 +272,12 @@ async def chat_stream_endpoint(req: ChatRequest):
                         sender_id=req.customer_id or "CUST1002"
                     )
                 )
+
+            # Fetch full conversation history for multi-turn memory
+            db_msgs = db.query(Message).filter(Message.conversation_id == conv_id).order_by(Message.id.asc()).all()
+            messages_history = [{"role": m.role, "content": m.content} for m in db_msgs]
+            if not messages_history:
+                messages_history = [{"role": "user", "content": req.message}]
         finally:
             db.close()
 
@@ -275,7 +287,7 @@ async def chat_stream_endpoint(req: ChatRequest):
             "conversation_id": conv_id,
             "case_id": case_id,
             "user_goal": req.message,
-            "messages": [{"role": "user", "content": req.message}],
+            "messages": messages_history,
             "customer_360": None,
             "intent": {},
             "investigation_result": None,

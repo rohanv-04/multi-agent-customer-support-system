@@ -76,21 +76,21 @@ export const HumanSupportCard: React.FC<Props> = ({
   };
 
   return (
-    <div className={`p-4 rounded-2xl glass-standard border border-white/[0.12] space-y-3 shadow-lg ${className}`}>
+    <div className={`p-4 rounded-2xl glass-standard space-y-3 shadow-lg ${className}`}>
       {!assignment ? (
         // Initial state: One primary option to speak with a human agent
         <div className="space-y-3">
-          <div className="flex items-center gap-2 text-cyan-300 font-semibold text-xs uppercase tracking-wider font-mono">
-            <User className="w-4 h-4 text-cyan-400" />
+          <div className="flex items-center gap-2 text-cyan-700 dark:text-cyan-300 font-semibold text-xs uppercase tracking-wider font-mono">
+            <User className="w-4 h-4 text-cyan-600 dark:text-cyan-400" />
             <span>Human Support</span>
           </div>
 
-          <div className="text-xs text-slate-300 leading-relaxed">
+          <div className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
             Need help from a human agent? We will connect you directly with a dedicated support specialist from our team.
           </div>
 
           {error && (
-            <div className="p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-xs text-rose-300 flex items-center gap-1.5">
+            <div className="p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-xs text-rose-700 dark:text-rose-300 flex items-center gap-1.5">
               <AlertCircle className="w-4 h-4 shrink-0" />
               <span>{error}</span>
             </div>
@@ -99,7 +99,7 @@ export const HumanSupportCard: React.FC<Props> = ({
           <button
             onClick={handleRequestHuman}
             disabled={isLoading}
-            className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white text-xs font-bold shadow-md shadow-cyan-500/20 flex items-center justify-center gap-2 transition-all disabled:opacity-50 group"
+            className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white text-xs font-bold shadow-md shadow-cyan-500/20 flex items-center justify-center gap-2 transition-all disabled:opacity-50 group"
           >
             {isLoading ? (
               <>
@@ -118,21 +118,21 @@ export const HumanSupportCard: React.FC<Props> = ({
         // Assigned state: Displays selected representative & Call Now button
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-emerald-400 font-semibold text-xs uppercase tracking-wider font-mono">
+            <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 font-semibold text-xs uppercase tracking-wider font-mono">
               <CheckCircle2 className="w-4 h-4" />
               <span>Human Agent Assigned</span>
             </div>
-            <span className="text-[10px] font-mono text-cyan-300 bg-cyan-500/10 px-2 py-0.5 rounded border border-cyan-500/20">
+            <span className="text-[10px] font-mono text-cyan-700 dark:text-cyan-300 bg-cyan-500/10 px-2 py-0.5 rounded border border-cyan-500/20">
               #{assignment.assignment_id}
             </span>
           </div>
 
-          <div className="p-3.5 rounded-xl bg-slate-800/60 border border-slate-700/60 space-y-1 text-center">
-            <div className="text-[11px] text-slate-400">You have been connected to:</div>
-            <div className="text-lg font-extrabold text-white tracking-wide">
+          <div className="p-3.5 rounded-xl bg-slate-100/90 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 space-y-1 text-center">
+            <div className="text-[11px] text-slate-500 dark:text-slate-400">You have been connected to:</div>
+            <div className="text-lg font-extrabold text-slate-900 dark:text-white tracking-wide">
               {assignment.representative.name}
             </div>
-            <div className="text-[11px] text-cyan-400 font-mono">
+            <div className="text-[11px] text-cyan-700 dark:text-cyan-400 font-mono">
               Dedicated Support Representative
             </div>
           </div>
@@ -148,11 +148,11 @@ export const HumanSupportCard: React.FC<Props> = ({
             </a>
 
             {callInitiated ? (
-              <div className="p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-center text-[10px] font-mono text-emerald-300">
+              <div className="p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-center text-[10px] font-mono text-emerald-700 dark:text-emerald-300">
                 ✓ Call link opened on device (CALL_INITIATED)
               </div>
             ) : (
-              <div className="text-[10px] text-center text-slate-400 font-mono">
+              <div className="text-[10px] text-center text-slate-500 dark:text-slate-400 font-mono">
                 Clicking will open your phone dialer with representative's direct number.
               </div>
             )}

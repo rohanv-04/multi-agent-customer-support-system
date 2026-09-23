@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { ThemeProvider } from './context/ThemeContext';
 import { AmbientBackground } from './components/layout/AmbientBackground';
 import { GlassNavbar } from './components/layout/GlassNavbar';
 import { GlassSidebar, NavTab } from './components/layout/GlassSidebar';
@@ -86,7 +87,7 @@ export function AppContent() {
   };
 
   return (
-    <div className="relative min-h-screen flex flex-col text-slate-100 overflow-x-hidden">
+    <div className="relative min-h-screen flex flex-col text-slate-900 dark:text-slate-100 overflow-x-hidden transition-colors duration-300">
       {/* Dynamic Ambient Background reacting to AI lifecycle */}
       <AmbientBackground aiState={aiState} />
 
@@ -199,9 +200,11 @@ export function AppContent() {
 
 export function App() {
   return (
-    <AuthProvider>
-      <AppContent />
-    </AuthProvider>
+    <ThemeProvider>
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
+    </ThemeProvider>
   );
 }
 

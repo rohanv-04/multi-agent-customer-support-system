@@ -12,18 +12,45 @@ CATALOG_PRODUCTS = {
     "monitor": "Ultra-wide Curved Gaming Monitor 34-inch"
 }
 
-def run_intake_agent(user_goal: str, customer_id: str = "CUST1002") -> IntakeExtractionResult:
+def run_intake_agent(
+    user_goal: str,
+    customer_id: str = "CUST1002",
+    conversation_history: Optional[List[Dict[str, Any]]] = None,
+    case_context: Optional[Dict[str, Any]] = None
+) -> IntakeExtractionResult:
     """Agent 1 — Intake & Intent Agent.
 
-    Strictly extracts structured intent, sub-intent, order IDs, product mentions,
+    Extracts structured intent, sub-intent, order IDs, product mentions,
     requested actions, urgency, sentiment, priority indicators, and entities into a Pydantic model.
+    Maintains multi-turn context across conversational turns.
     """
     clean_goal = user_goal.strip()
     goal_lower = clean_goal.lower()
 
-    # 1. Extract Order ID
-    order_match = re.search(r"\b(ORD-?\d{5})\b", clean_goal, re.IGNORECASE)
-    extracted_order = order_match.group(1).upper().replace("-", "") if order_match else None
+    # 1. Extract Order ID from current user message
+    order_match = re.search(r"\b(ORD-?\d{4,6})\b", clean_goal, re.IGNORECASE)
+    if not order_match:
+        # Check for standalone numbers like "10291" or "10002" if preceded by "it's", "order", "number", "#"
+        standalone_match = re.search(r"(?:order|it's|is|#)\s*[:#-]?\s*(\d{4,6})\b", clean_goal, re.IGNORECASE)
+        if standalone_match:
+            extracted_order = f"ORD{standalone_match.group(1)}"
+        else:
+            extracted_order = None
+    else:
+        extracted_order = order_match.group(1).upper().replace("-", "")
+
+    # Multi-turn context memory: inherit order ID from prior conversation turns if not provided
+    if not extracted_order and conversation_history:
+        for msg in reversed(conversation_history):
+            content = msg.get("content", "") or ""
+            prior_match = re.search(r"\b(ORD-?\d{4,6})\b", content, re.IGNORECASE)
+            if prior_match:
+                extracted_order = prior_match.group(1).upper().replace("-", "")
+                break
+            prior_standalone = re.search(r"(?:order|it's|is|#)\s*[:#-]?\s*(\d{4,6})\b", content, re.IGNORECASE)
+            if prior_standalone:
+                extracted_order = f"ORD{prior_standalone.group(1)}"
+                break
 
     # 2. Extract Customer ID
     cust_match = re.search(r"\b(CUST-?\d{4})\b", clean_goal, re.IGNORECASE)
@@ -47,7 +74,7 @@ def run_intake_agent(user_goal: str, customer_id: str = "CUST1002") -> IntakeExt
 
     # Sentiment analysis
     frustrated_terms = ["ridiculous", "terrible", "unacceptable", "angry", "furious", "worst", "fraud", "scam", "overdue", "still waiting", "stole"]
-    negative_terms = ["delayed", "late", "broken", "issue", "problem", "missing", "cancel", "wrong", "lost"]
+    negative_terms = ["delayed", "late", "broken", "issue", "problem", "missing", "cancel", "wrong", "lost", "hasn't arrived", "has not arrived", "haven't arrived"]
     positive_terms = ["thank", "great", "appreciate", "helpful", "good", "pleased", "fast"]
 
     if any(term in goal_lower for term in frustrated_terms):
@@ -64,9 +91,16 @@ def run_intake_agent(user_goal: str, customer_id: str = "CUST1002") -> IntakeExt
     # Intent Classification
     human_phrases = [
         "human", "agent", "representative", "speak to a person", "speak with someone",
-        "talk to a human", "customer support", "transfer me to a human", "talk to the bot",
+        "talk to a human", "speak with a human", "speak to a human", "customer support",
+        "transfer me to a human", "talk to the bot", "talk to a person", "talk to someone",
         "operator", "supervisor", "real person", "live person", "connect me"
     ]
+
+    # Check if the user is replying with an order ID to a previous prompt
+    is_order_response = False
+    if extracted_order and len(clean_goal.split()) <= 4 and not any(k in goal_lower for k in ["refund", "cancel", "policy"]):
+        is_order_response = True
+
     if any(phrase in goal_lower for phrase in human_phrases):
         intent = "human_escalation"
         sub_intent = "live_agent_handoff"
@@ -91,7 +125,7 @@ def run_intake_agent(user_goal: str, customer_id: str = "CUST1002") -> IntakeExt
 
     elif any(phrase in goal_lower for phrase in ["refund", "money back", "credit"]):
         intent = "refund_request"
-        if "delayed" in goal_lower:
+        if "delayed" in goal_lower or "late" in goal_lower:
             sub_intent = "severe_delay_refund"
             priority_indicators.append("delivery_delay_monetary_remedy")
         elif "damage" in goal_lower or "broken" in goal_lower:
@@ -105,15 +139,6 @@ def run_intake_agent(user_goal: str, customer_id: str = "CUST1002") -> IntakeExt
         confidence = 0.96
         priority_indicators.append("monetary_transaction_requested")
 
-    elif any(phrase in goal_lower for phrase in ["where is", "track", "status", "shipping", "delivery"]) and (extracted_order or "order" in goal_lower):
-        intent = "order_status_inquiry"
-        sub_intent = "tracking_lookup"
-        requested_action = "track_shipment"
-        urgency = "medium"
-        confidence = 0.95
-        if "delayed" in goal_lower:
-            priority_indicators.append("delayed_shipment_inquiry")
-
     elif any(phrase in goal_lower for phrase in ["cancel", "stop order"]):
         intent = "cancellation_request"
         sub_intent = "pre_fulfillment_cancellation"
@@ -121,6 +146,17 @@ def run_intake_agent(user_goal: str, customer_id: str = "CUST1002") -> IntakeExt
         urgency = "high"
         confidence = 0.94
         priority_indicators.append("order_cancellation_requested")
+
+    elif any(phrase in goal_lower for phrase in [
+        "where is", "track", "status", "shipping", "delivery", "arrive", "hasn't arrived", "has not arrived", "late", "delayed", "package"
+    ]) or is_order_response:
+        intent = "order_status_inquiry"
+        sub_intent = "tracking_lookup"
+        requested_action = "track_shipment"
+        urgency = "medium"
+        confidence = 0.95
+        if "delayed" in goal_lower or "late" in goal_lower or "hasn't arrived" in goal_lower:
+            priority_indicators.append("delayed_shipment_inquiry")
 
     else:
         intent = "general_inquiry"

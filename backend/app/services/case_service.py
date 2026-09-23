@@ -62,6 +62,8 @@ ALLOWED_TRANSITIONS: Dict[str, List[str]] = {
         CaseStatus.CLOSED.value
     ],
     CaseStatus.HUMAN_REVIEW.value: [
+        CaseStatus.TRIAGING.value,
+        CaseStatus.INVESTIGATING.value,
         CaseStatus.ACTION_PENDING.value,
         CaseStatus.VERIFYING.value,
         CaseStatus.RESOLVED.value,

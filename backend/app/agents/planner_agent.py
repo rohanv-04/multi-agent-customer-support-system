@@ -31,13 +31,19 @@ def run_planner_agent(user_goal: str, intent_data: Dict[str, Any]) -> Dict[str, 
             ]
 
     elif intent == "order_status_inquiry":
-        steps = [
-            f"Retrieve live tracking and carrier telemetry for order {order_id}",
-            "Retrieve shipping SLAs and transit policy guidelines",
-            "Assess delivery health and delay diagnostics",
-            "Validate status accuracy with Critic Agent",
-            "Format customer shipment update"
-        ]
+        if order_id:
+            steps = [
+                f"Retrieve live tracking and carrier telemetry for order {order_id}",
+                "Retrieve shipping SLAs and transit policy guidelines",
+                "Assess delivery health and delay diagnostics",
+                "Validate status accuracy with Critic Agent",
+                "Format customer shipment update"
+            ]
+        else:
+            steps = [
+                "Prompt customer for missing order identifier to perform shipment lookup",
+                "Synthesize natural conversational request for order number"
+            ]
 
     elif intent == "policy_inquiry":
         steps = [

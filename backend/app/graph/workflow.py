@@ -124,13 +124,16 @@ def supervisor_init_node(state: AgenticSupportState) -> Dict[str, Any]:
 
 def intent_node(state: AgenticSupportState) -> Dict[str, Any]:
     """Agent 1 — Intake & Intent Agent."""
+    history = state.get("messages", [])
     intake_res = run_intake_agent(
         user_goal=state["user_goal"],
-        customer_id=state.get("customer_id", "CUST1002")
+        customer_id=state.get("customer_id", "CUST1002"),
+        conversation_history=history
     )
     intent_data = run_intent_agent(
         user_goal=state["user_goal"],
-        customer_id=state.get("customer_id", "CUST1002")
+        customer_id=state.get("customer_id", "CUST1002"),
+        conversation_history=history
     )
     case_id = state.get("case_id")
 

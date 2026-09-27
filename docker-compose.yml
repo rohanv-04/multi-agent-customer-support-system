@@ -1,0 +1,84 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: supportos-postgres
+    restart: always
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-supportos}
+      POSTGRES_USER: ${POSTGRES_USER:-supportos_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-supportos_password}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-supportos_user} -d ${POSTGRES_DB:-supportos}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  redis:
+    image: redis:7-alpine
+    container_name: supportos-redis
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: supportos-backend
+    restart: always
+    environment:
+      - ENVIRONMENT=production
+      - DATABASE_URL=postgresql+psycopg://${POSTGRES_USER:-supportos_user}:${POSTGRES_PASSWORD:-supportos_password}@postgres:5432/${POSTGRES_DB:-supportos}
+      - REDIS_URL=redis://redis:6379/0
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - JWT_SECRET=${JWT_SECRET:-supportos-production-super-secret-jwt-key-2026}
+      - ALLOWED_ORIGINS=http://localhost,http://localhost:80,http://localhost:5173,http://127.0.0.1
+      - VECTOR_STORE_BACKEND=inmemory
+      - AGENT_KAVIN_PHONE=${AGENT_KAVIN_PHONE:-+1-800-555-0101}
+      - AGENT_ROHAN_PHONE=${AGENT_ROHAN_PHONE:-+1-800-555-0102}
+      - AGENT_NARAHARI_PHONE=${AGENT_NARAHARI_PHONE:-+1-800-555-0103}
+      - SHOPIFY_WEBHOOK_SECRET=${SHOPIFY_WEBHOOK_SECRET:-shpss_prod_secret_token}
+      - WOOCOMMERCE_WEBHOOK_SECRET=${WOOCOMMERCE_WEBHOOK_SECRET:-wc_secret_hash_key}
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    container_name: supportos-frontend
+    restart: always
+    ports:
+      - "80:80"
+      - "5173:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+  redis_data:

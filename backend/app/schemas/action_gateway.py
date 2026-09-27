@@ -35,6 +35,7 @@ class ActionRequest(BaseModel):
     customer_id: Optional[str] = None
     task_id: Optional[str] = None
     actor_role: Optional[str] = "agent"  # agent, supervisor, admin, system
+    idempotency_key: Optional[str] = None
 
 
 class VerificationResult(BaseModel):

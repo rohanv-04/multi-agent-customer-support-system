@@ -542,13 +542,16 @@ class CaseService:
                 TimelineItemResponse(
                     id=f"msg-{m.id}",
                     item_type="message",
+                    type="message",
                     timestamp=m.created_at,
                     title=f"{m.sender_type.capitalize()} Message ({m.direction})",
                     description=m.body,
+                    body=m.body,
                     actor=m.sender_id or m.sender_type,
+                    sender_type=m.sender_type,
                     badge=m.channel,
                     status=m.direction,
-                    metadata={"metadata_json": m.metadata_json}
+                    metadata={"metadata_json": m.metadata_json, "sender_type": m.sender_type, "channel": m.channel}
                 )
             )
 
@@ -559,9 +562,11 @@ class CaseService:
                 TimelineItemResponse(
                     id=f"evt-{e.id}",
                     item_type="event",
+                    type="event",
                     timestamp=e.created_at,
                     title=e.event_type.replace("_", " ").title(),
                     description=e.summary,
+                    summary=e.summary,
                     actor=e.actor,
                     badge=e.to_status or e.event_type,
                     status="info",
@@ -576,9 +581,11 @@ class CaseService:
                 TimelineItemResponse(
                     id=f"run-{r.id}",
                     item_type="agent_run",
+                    type="agent_run",
                     timestamp=r.started_at,
                     title=f"Agent Run: {r.agent_name}",
                     description=r.output_summary or f"Agent status: {r.status}",
+                    summary=r.output_summary,
                     actor=r.agent_name,
                     badge=r.status,
                     status="success" if r.status == "completed" else "warning",
@@ -593,9 +600,12 @@ class CaseService:
                 TimelineItemResponse(
                     id=f"act-{a.id}",
                     item_type="action",
+                    type="action",
                     timestamp=a.created_at,
                     title=f"Action: {a.action_type}",
+                    action_type=a.action_type,
                     description=a.output_summary or a.input_summary or "Action executed",
+                    output_summary=a.output_summary,
                     actor=a.agent_name,
                     badge=a.status,
                     status="success" if a.status == "completed" else "warning",
@@ -610,13 +620,15 @@ class CaseService:
                 TimelineItemResponse(
                     id=f"esc-{esc.ticket_id}",
                     item_type="escalation",
+                    type="escalation",
                     timestamp=esc.created_at,
                     title=f"Human Escalation: #{esc.ticket_id}",
                     description=esc.reason,
+                    summary=esc.summary,
                     actor="Escalation Agent",
                     badge=esc.priority,
                     status="urgent",
-                    metadata={"summary": esc.summary, "assigned_to": esc.assigned_to}
+                    metadata={"summary": esc.summary, "assigned_to": esc.assigned_to, "ticket_id": esc.ticket_id}
                 )
             )
 

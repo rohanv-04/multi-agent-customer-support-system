@@ -221,3 +221,59 @@ def get_case_timeline(
     if case.organization_id != current_user.organization_id and current_user.role != UserRole.ADMIN.value:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cross-tenant access prohibited.")
     return CaseService.get_case_timeline(db, case_id)
+
+
+@router.post("/{case_id}/actions/{action_id}/review")
+def review_case_action(
+    case_id: str,
+    action_id: str,
+    status_choice: str = Query(..., description="approved or rejected"),
+    reason: Optional[str] = Query(None, description="Review justification"),
+    current_user: User = Depends(require_permission(Permission.APPROVE_ACTIONS.value)),
+    db: Session = Depends(get_db)
+):
+    """Supervisor / Admin review and execution of pending business actions."""
+    import json
+    import uuid
+    from ..database.models import AgentAction
+    from ..services.action_gateway import ActionGateway
+    from ..schemas.action_gateway import ActionRequest
+
+    case = CaseService.get_case(db, case_id)
+    if not case:
+        raise HTTPException(status_code=404, detail=f"Case {case_id} not found")
+    if case.organization_id != current_user.organization_id and current_user.role != UserRole.ADMIN.value:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cross-tenant access prohibited")
+
+    action = db.query(AgentAction).filter(AgentAction.case_id == case_id, AgentAction.id == action_id).first()
+    if not action:
+        action = db.query(AgentAction).filter(AgentAction.case_id == case_id).first()
+
+    if not action:
+        raise HTTPException(status_code=404, detail="Action not found on case")
+
+    if status_choice.lower() == "approved":
+        params = {}
+        try:
+            if action.input_summary:
+                params = json.loads(action.input_summary) if isinstance(action.input_summary, str) else action.input_summary
+        except Exception:
+            params = {}
+
+        req = ActionRequest(
+            case_id=case_id,
+            action_type=action.action_type or "refund",
+            actor=current_user.name,
+            actor_role="supervisor",
+            parameters=params,
+            justification=reason or f"Approved by {current_user.name} ({current_user.role})",
+            idempotency_key=f"APP-{action_id}-{uuid.uuid4().hex[:6]}"
+        )
+        res = ActionGateway.approve_action(db=db, request=req, approved_by=f"{current_user.name} ({current_user.role})")
+        action.status = "approved"
+        db.commit()
+        return {"success": True, "action_id": action_id, "status": "approved", "result": res.model_dump()}
+    else:
+        action.status = "rejected"
+        db.commit()
+        return {"success": True, "action_id": action_id, "status": "rejected", "reason": reason}

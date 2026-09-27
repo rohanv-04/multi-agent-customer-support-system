@@ -94,18 +94,6 @@ export const CustomerChatView: React.FC<Props> = ({
     setMessages((prev) => [...prev, userMsg]);
     setInputText('');
 
-    // Check if user explicitly asked for a human in their message
-    const lower = textToSend.toLowerCase();
-    if (
-      lower.includes('human') ||
-      lower.includes('representative') ||
-      lower.includes('speak to a person') ||
-      lower.includes('speak with someone') ||
-      lower.includes('talk to someone')
-    ) {
-      setShowHumanDrawer(true);
-    }
-
     // Update AI state
     setAiState('THINKING');
     setActiveGoal(textToSend);
@@ -143,7 +131,6 @@ export const CustomerChatView: React.FC<Props> = ({
             setReplanCount((prev) => prev + 1);
           } else if (trace.agent.toLowerCase().includes('escalation')) {
             setAiState('ESCALATED');
-            setShowHumanDrawer(true);
             if (onTicketCreated) onTicketCreated();
           }
         },
@@ -154,7 +141,6 @@ export const CustomerChatView: React.FC<Props> = ({
           setAiState(completion.requires_escalation ? 'ESCALATED' : 'COMPLETED');
           if (completion.case_id) setActiveCaseId(completion.case_id);
           if (completion.investigation_result) setInvestigationResult(completion.investigation_result);
-          if (completion.requires_escalation) setShowHumanDrawer(true);
 
           // Add assistant message
           const assistantMsg: ChatMessage = {
@@ -187,7 +173,6 @@ export const CustomerChatView: React.FC<Props> = ({
           setAiState(res.requires_escalation ? 'ESCALATED' : 'COMPLETED');
           if (res.case_id) setActiveCaseId(res.case_id);
           if (res.investigation_result) setInvestigationResult(res.investigation_result);
-          if (res.requires_escalation) setShowHumanDrawer(true);
 
           const assistantMsg: ChatMessage = {
             id: `msg-${Date.now()}-ai`,
@@ -254,7 +239,11 @@ export const CustomerChatView: React.FC<Props> = ({
         {/* Message Thread */}
         <div className="flex-1 overflow-y-auto pr-2 space-y-1">
           {messages.map((msg) => (
-            <ChatMessageBubble key={msg.id} message={msg} />
+            <ChatMessageBubble
+              key={msg.id}
+              message={msg}
+              onConnectHuman={() => setShowHumanDrawer(true)}
+            />
           ))}
 
           {/* Natural Typing / Investigating Indicator */}

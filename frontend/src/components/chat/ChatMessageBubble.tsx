@@ -5,9 +5,10 @@ import { ChatMessage } from '../../types';
 interface Props {
   message: ChatMessage;
   onOpenTicket?: (ticketId: string) => void;
+  onConnectHuman?: () => void;
 }
 
-export const ChatMessageBubble: React.FC<Props> = ({ message }) => {
+export const ChatMessageBubble: React.FC<Props> = ({ message, onConnectHuman }) => {
   const [showTrace, setShowTrace] = useState(false);
   const isUser = message.role === 'user';
 
@@ -34,9 +35,9 @@ export const ChatMessageBubble: React.FC<Props> = ({ message }) => {
             <div className="flex items-center justify-between gap-3 mb-2 border-b border-slate-200 dark:border-white/[0.08] pb-1 text-[11px] text-slate-500 dark:text-slate-400 font-sans">
               <span className="text-cyan-700 dark:text-cyan-300 font-semibold tracking-wide">SupportOS AI</span>
               {message.requires_escalation && (
-                <span className="px-2 py-0.5 rounded-full bg-rose-500/15 text-rose-700 dark:text-rose-300 border border-rose-500/30 text-[10px] font-medium flex items-center gap-1">
-                  <AlertTriangle className="w-2.5 h-2.5" />
-                  Support Desk
+                <span className="px-2 py-0.5 rounded-full bg-cyan-500/15 text-cyan-700 dark:text-cyan-300 border border-cyan-500/30 text-[10px] font-medium flex items-center gap-1">
+                  <User className="w-2.5 h-2.5 text-cyan-500" />
+                  Human Support Available
                 </span>
               )}
             </div>
@@ -47,18 +48,40 @@ export const ChatMessageBubble: React.FC<Props> = ({ message }) => {
             {message.content}
           </div>
 
-          {/* Escalation Ticket Pill if case is escalated */}
-          {message.escalation_dossier && (
-            <div className="mt-3 p-2.5 rounded-xl bg-slate-100/90 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/80 text-xs flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
-                <span className="font-mono font-semibold text-slate-800 dark:text-slate-200">
-                  Ticket #{message.escalation_dossier.ticket_id}
-                </span>
+          {/* Interactive Option Card: Speak with Human Agents */}
+          {(message.requires_escalation || message.escalation_dossier) && (
+            <div className="mt-3 p-3 rounded-xl bg-cyan-500/10 dark:bg-cyan-500/[0.08] border border-cyan-500/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
+              <div className="flex items-start gap-2.5">
+                <div className="w-7 h-7 rounded-lg bg-cyan-500/20 border border-cyan-400/30 flex items-center justify-center text-cyan-600 dark:text-cyan-300 shrink-0 mt-0.5">
+                  <User className="w-3.5 h-3.5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-semibold text-slate-900 dark:text-white">
+                      Human Support Desk Option
+                    </span>
+                    {message.escalation_dossier?.ticket_id && (
+                      <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-700 dark:text-amber-400 border border-amber-500/30 font-semibold">
+                        #{message.escalation_dossier.ticket_id}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-slate-600 dark:text-slate-300 mt-0.5 leading-relaxed">
+                    You can continue chatting with AI or connect directly with our human specialists.
+                  </p>
+                </div>
               </div>
-              <span className="text-[10px] text-cyan-700 dark:text-cyan-300 font-mono">
-                Assigned to Support Desk
-              </span>
+
+              {onConnectHuman && (
+                <button
+                  type="button"
+                  onClick={onConnectHuman}
+                  className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-medium text-xs transition-all shadow-md shadow-cyan-600/20 flex items-center justify-center gap-1.5 shrink-0 hover:scale-[1.02]"
+                >
+                  <User className="w-3.5 h-3.5" />
+                  <span>Speak with Human</span>
+                </button>
+              )}
             </div>
           )}
 

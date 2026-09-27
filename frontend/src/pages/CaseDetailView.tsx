@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   ArrowLeft, 
   Clock, 
@@ -19,7 +19,8 @@ import {
   CornerDownRight,
   ExternalLink,
   Lock,
-  Brain
+  Brain,
+  MessageSquare
 } from 'lucide-react';
 import { 
   getCaseDetail, 
@@ -39,7 +40,8 @@ import {
   CaseDNA, 
   NextBestActionResponse, 
   AgentDebateRecord, 
-  SimilarCaseItem 
+  SimilarCaseItem,
+  TimelineItem
 } from '../types';
 import { useAuth } from '../context/AuthContext';
 
@@ -51,7 +53,7 @@ interface Props {
 export const CaseDetailView: React.FC<Props> = ({ caseId, onBack }) => {
   const { user, hasPermission } = useAuth();
   const [caseDetail, setCaseDetail] = useState<any | null>(null);
-  const [timeline, setTimeline] = useState<any[]>([]);
+  const [timeline, setTimeline] = useState<TimelineItem[]>([]);
   const [trace, setTrace] = useState<any | null>(null);
   const [customer360, setCustomer360] = useState<any | null>(null);
   const [caseDNA, setCaseDNA] = useState<CaseDNA | null>(null);
@@ -60,6 +62,9 @@ export const CaseDetailView: React.FC<Props> = ({ caseId, onBack }) => {
   const [similarCases, setSimilarCases] = useState<SimilarCaseItem[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [activeRightTab, setActiveRightTab] = useState<'trace' | 'dna' | 'nba' | 'debates' | 'similar' | 'evidence' | 'decision' | 'actions'>('trace');
+  const [timelineFilter, setTimelineFilter] = useState<'all' | 'message' | 'event' | 'action' | 'agent_run' | 'escalation'>('all');
+  const [messageDirection, setMessageDirection] = useState<'outbound' | 'internal'>('outbound');
+  const timelineEndRef = useRef<HTMLDivElement>(null);
   
   // Reply input state
   const [replyMessage, setReplyMessage] = useState<string>('');
@@ -102,6 +107,10 @@ export const CaseDetailView: React.FC<Props> = ({ caseId, onBack }) => {
     fetchFullCaseContext();
   }, [caseId]);
 
+  useEffect(() => {
+    timelineEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [timeline]);
+
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!replyMessage.trim() || isSending) return;
@@ -110,7 +119,7 @@ export const CaseDetailView: React.FC<Props> = ({ caseId, onBack }) => {
     try {
       await addCaseMessage(caseId, {
         body: replyMessage,
-        direction: 'outbound',
+        direction: messageDirection,
         channel: caseDetail?.channel || 'web_chat',
         sender_type: 'agent',
         sender_id: user?.email || 'agent'
@@ -123,6 +132,9 @@ export const CaseDetailView: React.FC<Props> = ({ caseId, onBack }) => {
       setIsSending(false);
     }
   };
+
+  const [actionNotice, setActionNotice] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+  const [isProcessingAction, setIsProcessingAction] = useState<boolean>(false);
 
   const handleAiSolve = async () => {
     setIsResolving(true);
@@ -141,17 +153,43 @@ export const CaseDetailView: React.FC<Props> = ({ caseId, onBack }) => {
     }
   };
 
-  const handleActionApproval = async (actionId: string, approved: boolean) => {
+  const handleActionApproval = async (actionId: string, approved: boolean, reason?: string) => {
+    if (!hasPermission('actions:approve')) {
+      setActionNotice({
+        message: 'Permission denied: Only supervisors or admins can approve operational actions.',
+        type: 'error'
+      });
+      return;
+    }
+
+    const actionVerb = approved ? 'approve and execute' : 'reject';
+    if (!window.confirm(`Are you sure you want to ${actionVerb} this operational action?`)) {
+      return;
+    }
+
+    setIsProcessingAction(true);
+    setActionNotice({ message: `Submitting ${actionVerb}...`, type: 'info' });
     try {
       await reviewActionRequest(
         actionId,
         approved ? 'approved' : 'rejected',
-        user?.email || 'supervisor',
-        approved ? 'Authorized by supervisor via operations console' : 'Rejected during manual triage'
+        user?.name || user?.email || 'Supervisor',
+        reason || (approved ? 'Authorized by supervisor via operations console' : 'Rejected during manual triage'),
+        caseId
       );
-      fetchFullCaseContext();
-    } catch (err) {
+      setActionNotice({
+        message: `Action successfully ${approved ? 'approved and executed' : 'rejected'}.`,
+        type: 'success'
+      });
+      await fetchFullCaseContext();
+    } catch (err: any) {
       console.error('Approval failed:', err);
+      setActionNotice({
+        message: `Approval failed: ${err.message || 'Server error'}`,
+        type: 'error'
+      });
+    } finally {
+      setIsProcessingAction(false);
     }
   };
 
@@ -355,74 +393,223 @@ export const CaseDetailView: React.FC<Props> = ({ caseId, onBack }) => {
         {/* CENTER COLUMN: Chronological Case Timeline (5 of 12 cols) */}
         {/* ========================================================= */}
         <div className="lg:col-span-5 bg-slate-900/80 border border-slate-800 rounded-2xl flex flex-col h-[760px] backdrop-blur-md overflow-hidden">
-          {/* Timeline Header */}
-          <div className="p-4 border-b border-slate-800 flex items-center justify-between bg-slate-800/30">
-            <div className="flex items-center gap-2 text-xs font-semibold text-white">
-              <Activity className="w-4 h-4 text-cyan-400" />
-              <span>Operational Case Timeline & Conversation</span>
+          {/* Timeline Header & Filter Bar */}
+          <div className="p-3.5 border-b border-slate-800 bg-slate-800/30 flex flex-col gap-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-xs font-semibold text-white">
+                <Activity className="w-4 h-4 text-cyan-400" />
+                <span>Operational Case Timeline & Conversation</span>
+              </div>
+              <span className="text-[11px] font-mono text-cyan-400 bg-cyan-950/60 border border-cyan-800/60 px-2 py-0.5 rounded-full">
+                {timeline.length} events logged
+              </span>
             </div>
-            <span className="text-xs font-mono text-slate-400">{timeline.length} events logged</span>
+
+            {/* Filter Pills */}
+            <div className="flex items-center gap-1 overflow-x-auto text-[10px] font-mono pt-1">
+              {[
+                { key: 'all', label: 'All Events' },
+                { key: 'message', label: 'Messages' },
+                { key: 'event', label: 'Lifecycle' },
+                { key: 'action', label: 'Actions' },
+                { key: 'agent_run', label: 'Agent Runs' },
+                { key: 'escalation', label: 'Escalations' }
+              ].map((f) => (
+                <button
+                  key={f.key}
+                  type="button"
+                  onClick={() => setTimelineFilter(f.key as any)}
+                  className={`px-2.5 py-1 rounded-lg transition-all ${
+                    timelineFilter === f.key
+                      ? 'bg-cyan-500 text-slate-950 font-bold shadow-sm'
+                      : 'bg-slate-800/80 text-slate-400 hover:text-white hover:bg-slate-700/80'
+                  }`}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
           </div>
 
           {/* Timeline Event Feed */}
-          <div className="flex-1 p-4 overflow-y-auto space-y-4">
-            {timeline.map((item, idx) => {
-              if (item.type === 'message') {
-                const isCustomer = item.sender_type === 'customer';
+          <div className="flex-1 p-4 overflow-y-auto space-y-3.5">
+            {timeline
+              .filter((item) => {
+                if (timelineFilter === 'all') return true;
+                const itType = item.item_type || item.type;
+                return itType === timelineFilter;
+              })
+              .map((item, idx) => {
+                const itemType = item.item_type || item.type || 'event';
+
+                if (itemType === 'message') {
+                  const isCustomer = item.sender_type === 'customer' || 
+                    item.actor?.toLowerCase().includes('cust') || 
+                    item.title?.toLowerCase().includes('customer') ||
+                    item.status === 'inbound';
+                  const isInternal = item.status === 'internal' || 
+                    item.title?.toLowerCase().includes('internal');
+
+                  return (
+                    <div key={idx} className={`flex flex-col ${isCustomer ? 'items-start' : 'items-end'}`}>
+                      <div className="text-[10px] text-slate-400 mb-1 px-1 flex items-center gap-1.5 font-mono">
+                        <span className="font-semibold text-slate-300">
+                          {isInternal ? 'Specialist Note' : isCustomer ? 'Customer' : 'Support Specialist'}
+                        </span>
+                        {item.badge && (
+                          <span className="px-1.5 py-0.2 rounded bg-slate-800 text-[9px] text-cyan-400 border border-slate-700">
+                            {item.badge}
+                          </span>
+                        )}
+                        <span>•</span>
+                        <span>{new Date(item.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                      </div>
+                      <div className={`p-3.5 rounded-2xl max-w-[88%] text-xs leading-relaxed ${
+                        isInternal
+                          ? 'bg-amber-950/30 text-amber-200 border border-amber-600/40 rounded-tr-sm'
+                          : isCustomer 
+                          ? 'bg-slate-800 text-slate-200 border border-slate-700/80 rounded-tl-sm' 
+                          : 'bg-cyan-600/20 text-cyan-100 border border-cyan-500/30 rounded-tr-sm'
+                      }`}>
+                        {item.body || item.description}
+                      </div>
+                    </div>
+                  );
+                } else if (itemType === 'event') {
+                  return (
+                    <div key={idx} className="flex items-center gap-3 my-2 text-xs">
+                      <div className="h-px bg-slate-800 flex-1" />
+                      <div className="px-3 py-1 rounded-full bg-slate-800/90 text-slate-300 font-mono text-[10px] border border-slate-700/80 flex items-center gap-1.5 shadow-sm">
+                        <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
+                        <span className="font-semibold text-white">{item.title}:</span>
+                        <span>{item.summary || item.description}</span>
+                        {item.actor && <span className="text-slate-500">({item.actor})</span>}
+                      </div>
+                      <div className="h-px bg-slate-800 flex-1" />
+                    </div>
+                  );
+                } else if (itemType === 'action') {
+                  return (
+                    <div key={idx} className="p-3 rounded-xl bg-purple-500/10 border border-purple-500/20 text-xs space-y-1">
+                      <div className="flex items-center justify-between font-semibold text-purple-300">
+                        <span className="flex items-center gap-1.5">
+                          <ShieldCheck className="w-3.5 h-3.5 text-purple-400" />
+                          <span>{item.title || `Action: ${item.action_type}`}</span>
+                        </span>
+                        <div className="flex items-center gap-2">
+                          {item.metadata?.duration_ms && (
+                            <span className="text-[10px] font-mono text-slate-400">{item.metadata.duration_ms}ms</span>
+                          )}
+                          <span className="text-[10px] text-emerald-400 font-mono uppercase bg-emerald-950/60 px-1.5 py-0.5 rounded border border-emerald-800/40">
+                            {item.status || 'completed'}
+                          </span>
+                        </div>
+                      </div>
+                      <p className="text-slate-300 text-[11px] leading-relaxed">{item.output_summary || item.description}</p>
+                    </div>
+                  );
+                } else if (itemType === 'agent_run') {
+                  return (
+                    <div key={idx} className="p-3 rounded-xl bg-cyan-950/20 border border-cyan-800/30 text-xs space-y-1">
+                      <div className="flex items-center justify-between font-semibold text-cyan-300">
+                        <span className="flex items-center gap-1.5">
+                          <Cpu className="w-3.5 h-3.5 text-cyan-400" />
+                          <span>{item.title || `Agent Run: ${item.actor}`}</span>
+                        </span>
+                        <div className="flex items-center gap-2">
+                          {item.metadata?.confidence && (
+                            <span className="text-[10px] font-mono text-slate-400">
+                              {Math.round(item.metadata.confidence * 100)}% conf
+                            </span>
+                          )}
+                          <span className={`text-[10px] font-mono uppercase px-1.5 py-0.5 rounded border ${
+                            item.status === 'completed'
+                              ? 'text-emerald-400 bg-emerald-950/60 border-emerald-800/40'
+                              : 'text-amber-400 bg-amber-950/60 border-amber-800/40'
+                          }`}>
+                            {item.badge || item.status}
+                          </span>
+                        </div>
+                      </div>
+                      <p className="text-slate-300 text-[11px] leading-relaxed">{item.description || item.summary}</p>
+                    </div>
+                  );
+                } else if (itemType === 'escalation') {
+                  return (
+                    <div key={idx} className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-xs space-y-1.5">
+                      <div className="flex items-center justify-between font-semibold text-rose-300">
+                        <span className="flex items-center gap-1.5">
+                          <AlertTriangle className="w-3.5 h-3.5 text-rose-400" />
+                          <span>{item.title}</span>
+                        </span>
+                        <span className="text-[10px] text-rose-300 uppercase font-mono bg-rose-950/80 px-2 py-0.5 rounded border border-rose-800/60">
+                          {item.badge || 'Urgent Escalation'}
+                        </span>
+                      </div>
+                      <p className="text-slate-200 text-[11px] leading-relaxed">{item.description || item.summary}</p>
+                      {item.metadata?.assigned_to && (
+                        <div className="text-[10px] font-mono text-slate-400 flex items-center gap-1">
+                          <span>Assigned Agent:</span>
+                          <strong className="text-white">{item.metadata.assigned_to}</strong>
+                        </div>
+                      )}
+                    </div>
+                  );
+                }
+
+                // Generic Fallback
                 return (
-                  <div key={idx} className={`flex flex-col ${isCustomer ? 'items-start' : 'items-end'}`}>
-                    <div className="text-[10px] text-slate-400 mb-1 px-1 flex items-center gap-1.5 font-mono">
-                      <span>{isCustomer ? 'Customer' : 'Support Specialist'}</span>
-                      <span>•</span>
-                      <span>{new Date(item.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                  <div key={idx} className="p-3 rounded-xl bg-slate-800/60 border border-slate-700/60 text-xs space-y-1">
+                    <div className="flex items-center justify-between font-semibold text-slate-300">
+                      <span>{item.title}</span>
+                      <span className="text-[10px] font-mono text-slate-400">{item.status}</span>
                     </div>
-                    <div className={`p-3.5 rounded-2xl max-w-[85%] text-xs leading-relaxed ${
-                      isCustomer 
-                        ? 'bg-slate-800 text-slate-200 border border-slate-700/80 rounded-tl-sm' 
-                        : 'bg-cyan-600/20 text-cyan-100 border border-cyan-500/30 rounded-tr-sm'
-                    }`}>
-                      {item.body}
-                    </div>
+                    <p className="text-slate-400 text-[11px]">{item.description}</p>
                   </div>
                 );
-              } else if (item.type === 'event') {
-                return (
-                  <div key={idx} className="flex items-center gap-3 my-2 text-xs">
-                    <div className="h-px bg-slate-800 flex-1" />
-                    <div className="px-3 py-1 rounded-full bg-slate-800/80 text-slate-400 font-mono text-[10px] border border-slate-700/60 flex items-center gap-1.5">
-                      <span className="w-1.5 h-1.5 rounded-full bg-cyan-400" />
-                      <span>{item.summary}</span>
-                    </div>
-                    <div className="h-px bg-slate-800 flex-1" />
-                  </div>
-                );
-              } else if (item.type === 'action') {
-                return (
-                  <div key={idx} className="p-3 rounded-xl bg-purple-500/10 border border-purple-500/20 text-xs space-y-1">
-                    <div className="flex items-center justify-between font-semibold text-purple-300">
-                      <span className="flex items-center gap-1.5">
-                        <ShieldCheck className="w-3.5 h-3.5" /> Action Executed: {item.action_type}
-                      </span>
-                      <span className="text-[10px] text-emerald-400 font-mono">{item.status}</span>
-                    </div>
-                    <p className="text-slate-300 text-[11px]">{item.output_summary}</p>
-                  </div>
-                );
-              }
-              return null;
-            })}
+              })}
 
             {timeline.length === 0 && (
-              <div className="text-center py-20 text-xs text-slate-500">
-                No conversation events recorded yet.
+              <div className="text-center py-24 text-xs text-slate-500 flex flex-col items-center gap-2">
+                <MessageSquare className="w-8 h-8 text-slate-600 stroke-1" />
+                <span>No conversation events recorded yet.</span>
               </div>
             )}
+
+            <div ref={timelineEndRef} />
           </div>
 
           {/* Response / Dispatch Bar */}
           <div className="p-4 border-t border-slate-800 bg-slate-900/90 space-y-3">
             <div className="flex items-center justify-between">
-              <span className="text-xs text-slate-400 font-medium">Compose Response</span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-slate-400 font-medium">Compose Response:</span>
+                <div className="flex items-center bg-slate-800 rounded-lg p-0.5 border border-slate-700">
+                  <button
+                    type="button"
+                    onClick={() => setMessageDirection('outbound')}
+                    className={`px-2 py-0.5 rounded text-[10px] font-semibold transition-all ${
+                      messageDirection === 'outbound'
+                        ? 'bg-cyan-500 text-slate-950 shadow-sm'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    Customer Reply
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMessageDirection('internal')}
+                    className={`px-2 py-0.5 rounded text-[10px] font-semibold transition-all ${
+                      messageDirection === 'internal'
+                        ? 'bg-amber-500 text-slate-950 shadow-sm'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    Specialist Note
+                  </button>
+                </div>
+              </div>
+
               <button
                 type="button"
                 onClick={handleAiSolve}
@@ -439,13 +626,17 @@ export const CaseDetailView: React.FC<Props> = ({ caseId, onBack }) => {
                 type="text"
                 value={replyMessage}
                 onChange={(e) => setReplyMessage(e.target.value)}
-                placeholder="Type customer message or specialist note..."
+                placeholder={
+                  messageDirection === 'internal'
+                    ? 'Write internal specialist triage note...'
+                    : 'Type customer message or dispatch update...'
+                }
                 className="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-cyan-500"
               />
               <button
                 type="submit"
                 disabled={isSending || !replyMessage.trim()}
-                className="p-2.5 bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold rounded-xl disabled:opacity-50 transition-all"
+                className="p-2.5 bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold rounded-xl disabled:opacity-50 transition-all shadow-md"
               >
                 <Send className="w-4 h-4" />
               </button>

@@ -165,6 +165,49 @@ def run_intake_agent(
         urgency = "low"
         confidence = 0.85
 
+        # If general inquiry and cloud is enabled, allow Gemini to classify subtle phrasing
+        if len(clean_goal.split()) > 3:
+            try:
+                from .llm_client import llm_client
+                if llm_client.is_cloud_enabled():
+                    classified = llm_client.generate_json_sync(
+                        system_prompt=(
+                            "You are an intent triage specialist for NovaCart e-commerce support. "
+                            "Classify the customer message into one of these intents: "
+                            "['order_status_inquiry', 'refund_request', 'cancellation_request', 'policy_inquiry', 'human_escalation', 'general_inquiry']. "
+                            "Also extract sentiment: ['positive', 'neutral', 'negative', 'frustrated'], "
+                            "and urgency: ['low', 'medium', 'high', 'urgent']. "
+                            "Output JSON with keys: intent, sentiment, urgency."
+                        ),
+                        user_prompt=clean_goal,
+                        temperature=0.1
+                    )
+                    if classified and isinstance(classified, dict):
+                        valid_intents = [
+                            "order_status_inquiry", "refund_request", "cancellation_request",
+                            "policy_inquiry", "human_escalation", "general_inquiry"
+                        ]
+                        if classified.get("intent") in valid_intents:
+                            intent = classified["intent"]
+                            if intent == "order_status_inquiry":
+                                sub_intent = "tracking_lookup"
+                                requested_action = "track_shipment"
+                            elif intent == "refund_request":
+                                sub_intent = "standard_order_refund"
+                                requested_action = "issue_refund"
+                            elif intent == "policy_inquiry":
+                                sub_intent = "policy_guidance"
+                                requested_action = "explain_policy"
+                            elif intent == "human_escalation":
+                                sub_intent = "live_agent_handoff"
+                                requested_action = "escalate_to_human"
+                        if classified.get("sentiment"):
+                            sentiment = classified["sentiment"]
+                        if classified.get("urgency"):
+                            urgency = classified["urgency"]
+            except Exception:
+                pass
+
     if extracted_order:
         priority_indicators.append(f"order_entity_{extracted_order}")
 

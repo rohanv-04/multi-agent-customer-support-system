@@ -77,3 +77,41 @@ def get_case_human_support(
     if not assignment:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No human support assignment found for this case")
     return assignment
+
+
+# Standalone telephony endpoint for Section 25
+telephony_router = APIRouter(prefix="/api/human-support", tags=["Telephony Provider"])
+
+
+@telephony_router.post("/call")
+def dispatch_human_support_call(
+    payload: dict,
+    db: Session = Depends(get_db)
+):
+    """Dispatches an outbound phone call via configured TelephonyProvider (Twilio or Mock).
+    Request: {"case_id": "...", "agent_id": "kavin" | "rohan" | "narahari"}
+    """
+    case_id = payload.get("case_id")
+    agent_id = (payload.get("agent_id") or payload.get("representative_id") or "kavin").lower()
+
+    # Find contact
+    contacts = human_support_service.get_configured_contacts()
+    target_contact = next((c for c in contacts if c["id"].lower() == agent_id), contacts[0])
+    to_phone = target_contact["phone"]
+
+    # Dispatch via TelephonyProvider
+    call_record = human_support_service.telephony_provider.initiate_outbound_call(
+        to_phone=to_phone,
+        from_phone="+18005550199",
+        metadata={"case_id": case_id, "representative": target_contact["name"]}
+    )
+
+    return {
+        "success": True,
+        "case_id": case_id,
+        "representative": target_contact["name"],
+        "call_sid": call_record.get("call_sid"),
+        "status": call_record.get("status"),
+        "provider": call_record.get("provider"),
+        "message": f"Connecting support call with representative {target_contact['name']} ({to_phone})."
+    }

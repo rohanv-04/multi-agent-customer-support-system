@@ -12,6 +12,7 @@ from .sla_engine import SLAEngine, sla_engine
 from .evaluation_dataset import BENCHMARK_DATASET, get_benchmarks
 from .evaluation_engine import EvaluationEngine, evaluation_engine
 from .observability_service import ObservabilityService, observability_service
+from .response_sanitizer import ResponseSanitizer
 
 __all__ = [
     "CaseService",
@@ -34,5 +35,6 @@ __all__ = [
     "EvaluationEngine",
     "evaluation_engine",
     "ObservabilityService",
-    "observability_service"
+    "observability_service",
+    "ResponseSanitizer"
 ]

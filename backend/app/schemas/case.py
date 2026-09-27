@@ -177,6 +177,14 @@ class TimelineItemResponse(BaseModel):
     status: Optional[str] = None
     metadata: Optional[Dict[str, Any]] = None
 
+    # Convenience and backward-compatible fields for UI consumption
+    type: Optional[str] = None
+    body: Optional[str] = None
+    sender_type: Optional[str] = None
+    summary: Optional[str] = None
+    action_type: Optional[str] = None
+    output_summary: Optional[str] = None
+
 
 class CaseResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)

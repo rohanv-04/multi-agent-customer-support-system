@@ -444,3 +444,21 @@ export interface CallInitiatedResponse {
   tel_link: string;
 }
 
+export interface TimelineItem {
+  id: string;
+  item_type: 'message' | 'event' | 'agent_run' | 'action' | 'escalation' | 'audit' | string;
+  type?: 'message' | 'event' | 'agent_run' | 'action' | 'escalation' | 'audit' | string;
+  timestamp: string;
+  title: string;
+  description: string;
+  actor: string;
+  badge?: string;
+  status?: string;
+  metadata?: Record<string, any>;
+  body?: string;
+  sender_type?: string;
+  summary?: string;
+  action_type?: string;
+  output_summary?: string;
+}
+

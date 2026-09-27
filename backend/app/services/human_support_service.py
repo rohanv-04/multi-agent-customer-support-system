@@ -16,34 +16,41 @@ from ..schemas.human_support import (
     CallInitiatedResponse
 )
 
-# Centralized Support Team Configuration
-SUPPORT_CONTACTS: List[Dict[str, Any]] = [
-    {
-        "id": "kavin",
-        "name": "Kavin",
-        "phone": "7200212576",
-        "available": True,
-    },
-    {
-        "id": "rohan",
-        "name": "Rohan",
-        "phone": "8025136089",
-        "available": True,
-    },
-    {
-        "id": "narahari",
-        "name": "Narahari",
-        "phone": "7396892041",
-        "available": True,
-    },
-]
+import os
+from ..providers.telephony import get_telephony_provider
+
+# Centralized Support Team Configuration loaded from environment
+def get_support_contacts() -> List[Dict[str, Any]]:
+    return [
+        {
+            "id": "kavin",
+            "name": "Kavin",
+            "phone": os.getenv("AGENT_KAVIN_PHONE", "7200212576"),
+            "available": True,
+        },
+        {
+            "id": "rohan",
+            "name": "Rohan",
+            "phone": os.getenv("AGENT_ROHAN_PHONE", "8025136089"),
+            "available": True,
+        },
+        {
+            "id": "narahari",
+            "name": "Narahari",
+            "phone": os.getenv("AGENT_NARAHARI_PHONE", "7396892041"),
+            "available": True,
+        },
+    ]
+
+SUPPORT_CONTACTS: List[Dict[str, Any]] = get_support_contacts()
 
 
 class HumanSupportService:
-    """Service managing human support assignment, random representative selection, and call initiation tracking."""
+    """Service managing human support assignment, representative selection, and telephony dispatch."""
 
     def __init__(self, contacts: Optional[List[Dict[str, Any]]] = None):
-        self._contacts = contacts or SUPPORT_CONTACTS
+        self._contacts = contacts or get_support_contacts()
+        self.telephony_provider = get_telephony_provider()
 
     def get_configured_contacts(self) -> List[Dict[str, Any]]:
         """Return the list of configured support contacts."""

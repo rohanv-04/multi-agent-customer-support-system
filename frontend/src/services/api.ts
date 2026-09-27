@@ -187,11 +187,20 @@ export async function updateCaseStatus(caseId: string, status: string, actor: st
   return res.json();
 }
 
-export async function reviewActionRequest(actionId: string, status: string, reviewer: string, reason?: string) {
-  // Action approval / review simulation & execution
-  const res = await fetch(`${API_BASE_URL}/api/escalations`, {
-    headers: getAuthHeaders()
-  });
+export async function reviewActionRequest(actionId: string, status: string, reviewer: string, reason?: string, caseId?: string) {
+  try {
+    const cid = caseId || actionId;
+    const url = `${API_BASE_URL}/api/cases/${cid}/actions/${actionId}/review?status_choice=${status}${reason ? `&reason=${encodeURIComponent(reason)}` : ''}`;
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: getAuthHeaders()
+    });
+    if (res.ok) {
+      return res.json();
+    }
+  } catch (e) {
+    console.warn('Real review call fallback:', e);
+  }
   return { action_id: actionId, status, reviewer, reason };
 }
 

@@ -8,7 +8,12 @@ from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
+from pathlib import Path
 
+# Load environment variables from backend/.env and root .env
+_base_dir = Path(__file__).resolve().parent.parent  # backend/
+load_dotenv(_base_dir / ".env")
+load_dotenv(_base_dir.parent / ".env")
 load_dotenv()
 
 from sqlalchemy import text
@@ -35,7 +40,8 @@ from .api.evaluations import router as evaluations_router
 from .api.audit import router as audit_router
 from .api.auth import router as auth_router
 from .api.differentiation import router as differentiation_router
-from .api.human_support import router as human_support_router
+from .api.human_support import router as human_support_router, telephony_router
+from .api.webhooks import router as webhooks_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -164,6 +170,8 @@ app.include_router(differentiation_router, prefix="/api")
 app.include_router(differentiation_router)
 app.include_router(human_support_router, prefix="/api")
 app.include_router(human_support_router)
+app.include_router(telephony_router)
+app.include_router(webhooks_router)
 
 # Health & Readiness Endpoints
 @app.get("/health", tags=["System Health"])

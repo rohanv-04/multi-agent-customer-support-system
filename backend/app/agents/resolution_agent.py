@@ -160,7 +160,7 @@ def run_resolution_agent(
                 observation = f"Replacement creation failed: {res.error}"
 
         else:
-            observation = f"Step '{current_step}' analyzed and synthesized with available context."
+            observation = "Analyzed inquiry context and gathered information for resolution."
 
     finally:
         if close_db_local:

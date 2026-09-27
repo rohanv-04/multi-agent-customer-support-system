@@ -40,12 +40,33 @@ from ..providers.channel_providers import (
 from .case_service import CaseService
 
 
+import os
+
+
 class DeduplicationRegistry:
-    """Thread-safe in-memory cache for fast deduplication checking."""
+    """Thread-safe deduplication registry supporting Redis backend with safe in-memory fallback.
+    Prevents duplicate webhook events, repeat messages, and duplicate financial mutations.
+    """
     def __init__(self, ttl_seconds: int = 3600):
         self._processed_ids: Dict[str, datetime.datetime] = {}
         self._content_hashes: Dict[str, datetime.datetime] = {}
+        self._action_idempotency: Dict[str, Dict[str, Any]] = {}
         self._ttl = datetime.timedelta(seconds=ttl_seconds)
+        self._ttl_seconds = ttl_seconds
+        self.redis_client = None
+        self._init_redis()
+
+    def _init_redis(self):
+        redis_url = os.getenv("REDIS_URL")
+        if redis_url:
+            try:
+                import redis
+                self.redis_client = redis.from_url(redis_url, decode_responses=True)
+                self.redis_client.ping()
+                print(f"[DeduplicationRegistry] Connected to Redis cluster at {redis_url}")
+            except Exception as e:
+                print(f"[DeduplicationRegistry Warning] Redis unavailable ({e}). Using thread-safe in-memory cache.")
+                self.redis_client = None
 
     def _cleanup(self, now: datetime.datetime):
         expired_ids = [k for k, v in self._processed_ids.items() if now - v > self._ttl]
@@ -56,28 +77,109 @@ class DeduplicationRegistry:
             del self._content_hashes[k]
 
     def is_duplicate(self, request_id: str, sender: str, body: str, channel: str) -> bool:
+        if self.redis_client:
+            try:
+                req_key = f"dedup:req:{request_id}"
+                is_new = self.redis_client.set(req_key, "1", ex=self._ttl_seconds, nx=True)
+                if not is_new:
+                    return True
+
+                content_key = f"{channel}:{sender.lower()}:{body.strip()}"
+                content_hash = hashlib.sha256(content_key.encode("utf-8")).hexdigest()
+                hash_key = f"dedup:hash:{content_hash}"
+                is_hash_new = self.redis_client.set(hash_key, "1", ex=self._ttl_seconds, nx=True)
+                if not is_hash_new:
+                    return True
+
+                return False
+            except Exception as e:
+                print(f"[DeduplicationRegistry Warning] Redis query error ({e}), falling back safely to local memory")
+
         now = get_utc_now()
         self._cleanup(now)
 
-        # Check explicit request ID
         if request_id in self._processed_ids:
             return True
 
-        # Check content hash for fast repeat spam
         content_key = f"{channel}:{sender.lower()}:{body.strip()}"
         content_hash = hashlib.sha256(content_key.encode("utf-8")).hexdigest()
         if content_hash in self._content_hashes:
             return True
 
-        # Register
         self._processed_ids[request_id] = now
         self._content_hashes[content_hash] = now
         return False
+
+    def is_event_duplicate(self, event_id: str, namespace: str = "webhook") -> bool:
+        """Check if an external event (e.g. Shopify / WooCommerce webhook ID) was already processed."""
+        if not event_id:
+            return False
+
+        if self.redis_client:
+            try:
+                key = f"dedup:event:{namespace}:{event_id}"
+                is_new = self.redis_client.set(key, "1", ex=self._ttl_seconds * 24, nx=True)
+                return not is_new
+            except Exception as e:
+                print(f"[DeduplicationRegistry Warning] Redis event dedup error ({e})")
+
+        now = get_utc_now()
+        self._cleanup(now)
+        key = f"{namespace}:{event_id}"
+        if key in self._processed_ids:
+            return True
+        self._processed_ids[key] = now
+        return False
+
+    def check_and_store_action_idempotency(self, idempotency_key: str, action_data: Optional[Dict[str, Any]] = None) -> Tuple[bool, Optional[Dict[str, Any]]]:
+        """Check if an action with idempotency_key was already executed.
+        Returns: (is_duplicate: bool, previous_result: Optional[dict])
+        """
+        if not idempotency_key:
+            return False, None
+
+        if self.redis_client:
+            try:
+                key = f"idempotency:action:{idempotency_key}"
+                existing = self.redis_client.get(key)
+                if existing:
+                    return True, json.loads(existing)
+                if action_data:
+                    self.redis_client.set(key, json.dumps(action_data), ex=86400)
+                return False, None
+            except Exception as e:
+                print(f"[DeduplicationRegistry Warning] Redis action idempotency error ({e})")
+
+        if idempotency_key in self._action_idempotency:
+            return True, self._action_idempotency[idempotency_key]
+        if action_data:
+            self._action_idempotency[idempotency_key] = action_data
+        return False, None
+
+    def store_action_result(self, idempotency_key: str, result_data: Dict[str, Any]):
+        """Persist result for idempotency caching."""
+        if not idempotency_key:
+            return
+        if self.redis_client:
+            try:
+                key = f"idempotency:action:{idempotency_key}"
+                self.redis_client.set(key, json.dumps(result_data), ex=86400)
+            except Exception:
+                pass
+        self._action_idempotency[idempotency_key] = result_data
 
     def clear(self):
         """Used in test fixtures for clean slate testing."""
         self._processed_ids.clear()
         self._content_hashes.clear()
+        self._action_idempotency.clear()
+        if self.redis_client:
+            try:
+                keys = self.redis_client.keys("dedup:*")
+                if keys:
+                    self.redis_client.delete(*keys)
+            except Exception:
+                pass
 
 
 dedup_registry = DeduplicationRegistry()

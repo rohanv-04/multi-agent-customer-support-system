@@ -781,7 +781,10 @@ def complete_node(state: AgenticSupportState) -> Dict[str, Any]:
         observations=state.get("observations", []),
         tool_calls=state.get("tool_calls", []),
         rag_data=state["retrieved_docs"][-1] if state.get("retrieved_docs") else None,
-        escalation_dossier=state.get("escalation_dossier")
+        escalation_dossier=state.get("escalation_dossier"),
+        messages=state.get("messages", []),
+        customer_360=state.get("customer_360"),
+        user_goal=state.get("user_goal")
     )
     case_id = state.get("case_id")
 

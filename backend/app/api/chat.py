@@ -157,7 +157,7 @@ async def chat_endpoint(req: ChatRequest):
     # Execute LangGraph
     final_state = support_graph.invoke(initial_state)
 
-    # Save assistant message to database
+    # Save assistant message to database and case timeline
     db = SessionLocal()
     try:
         assistant_msg = Message(
@@ -173,6 +173,23 @@ async def chat_endpoint(req: ChatRequest):
         )
         db.add(assistant_msg)
         db.commit()
+
+        effective_case_id = final_state.get("case_id") or case_id
+        if effective_case_id:
+            try:
+                CaseService.add_case_message(
+                    db=db,
+                    case_id=effective_case_id,
+                    msg_data=CaseMessageCreate(
+                        body=final_state["final_response"],
+                        direction="outbound",
+                        channel="web_chat",
+                        sender_type="agent",
+                        sender_id="SupportOS AI"
+                    )
+                )
+            except Exception as e:
+                print(f"[CaseMessage Outbound Error]: {e}")
     finally:
         db.close()
 
@@ -314,6 +331,42 @@ async def chat_stream_endpoint(req: ChatRequest):
 
         # Run graph
         final_state = support_graph.invoke(initial_state)
+
+        # Save assistant message to database and case timeline
+        db_save = SessionLocal()
+        try:
+            assistant_msg = Message(
+                conversation_id=conv_id,
+                role="assistant",
+                content=final_state["final_response"],
+                metadata_json=json.dumps({
+                    "task_id": task_id,
+                    "case_id": final_state.get("case_id", case_id),
+                    "confidence": final_state["confidence"],
+                    "status": final_state["status"]
+                })
+            )
+            db_save.add(assistant_msg)
+            db_save.commit()
+
+            effective_case_id = final_state.get("case_id") or case_id
+            if effective_case_id:
+                try:
+                    CaseService.add_case_message(
+                        db=db_save,
+                        case_id=effective_case_id,
+                        msg_data=CaseMessageCreate(
+                            body=final_state["final_response"],
+                            direction="outbound",
+                            channel="web_chat",
+                            sender_type="agent",
+                            sender_id="SupportOS AI"
+                        )
+                    )
+                except Exception as e:
+                    print(f"[CaseMessage Stream Outbound Error]: {e}")
+        finally:
+            db_save.close()
 
         # Stream execution trace events chronologically
         for trace in final_state["execution_trace"]:

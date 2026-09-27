@@ -13,8 +13,6 @@ from ..schemas.action_gateway import (
 from ..schemas.risk import RiskDecision, RiskLevel, RiskEvaluationResult
 from ..schemas.decision import DecisionResult, DecisionType
 from ..schemas.case import CaseStatus, EventType
-from ..agents.risk_agent import run_risk_agent
-from ..agents.verification_agent import verify_action_execution
 from ..services.case_service import CaseService
 from ..tools import execute_tool
 from ..database.models import (
@@ -56,6 +54,25 @@ class ActionGateway:
         now = get_utc_now()
         action_type = request.action_type.lower()
         case_id = request.case_id
+
+        # Check Idempotency Vault to prevent duplicate mutations or billing
+        if request.idempotency_key:
+            from .omnichannel_service import dedup_registry
+            is_dup, prev_result = dedup_registry.check_and_store_action_idempotency(request.idempotency_key)
+            if is_dup and prev_result:
+                cls._log_audit(
+                    db=db,
+                    case_id=case_id,
+                    entity_type="AgentAction",
+                    entity_id=action_id,
+                    action=f"{action_type.upper()}_IDEMPOTENT_REPLAY",
+                    actor=request.requested_by,
+                    details={"idempotency_key": request.idempotency_key, "message": "Duplicate action suppressed"}
+                )
+                try:
+                    return ActionResult(**prev_result)
+                except Exception:
+                    pass
 
         # -------------------------------------------------------------
         # Stage 1: Permission Check
@@ -115,6 +132,7 @@ class ActionGateway:
                 rationale=request.justification or "Action Gateway Evaluation",
                 recommended_action_name=action_type
             )
+            from ..agents.risk_agent import run_risk_agent
             risk_res = run_risk_agent(db=db, decision=synthetic_decision, customer_360=c360)
 
         # -------------------------------------------------------------
@@ -202,6 +220,7 @@ class ActionGateway:
             # -------------------------------------------------------------
             # Stage 6: Independent Database Verification
             # -------------------------------------------------------------
+            from ..agents.verification_agent import verify_action_execution
             verification_result = verify_action_execution(
                 db=db,
                 request=request,
@@ -277,7 +296,7 @@ class ActionGateway:
         final_status = ActionStatus.VERIFIED.value if verification_result.verified else ActionStatus.FAILED.value
         ext_ref = execution_result.get("result", {}).get("refund_id") or execution_result.get("result", {}).get("cancellation_id") or execution_result.get("result", {}).get("replacement_id") or execution_result.get("result", {}).get("tracking_number")
 
-        return ActionResult(
+        res_obj = ActionResult(
             action_id=action_id,
             status=final_status,
             external_reference=ext_ref,
@@ -286,6 +305,15 @@ class ActionGateway:
             verification=verification_result,
             audit_id=audit_log.id if audit_log else None
         )
+
+        if request.idempotency_key and verification_result.verified:
+            try:
+                from .omnichannel_service import dedup_registry
+                dedup_registry.store_action_result(request.idempotency_key, res_obj.model_dump())
+            except Exception:
+                pass
+
+        return res_obj
 
     @classmethod
     def approve_action(
